@@ -9,6 +9,7 @@ using Microsoft.ML.Runtime.Data;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 
 [assembly: LoadableClass(typeof(GenericScorer), typeof(GenericScorer.Arguments), typeof(SignatureDataScorer),
     "Generic Scorer", GenericScorer.LoadName, "Generic")]
@@ -24,7 +25,7 @@ namespace Microsoft.ML.Runtime.Data
     /// score set id metadata.
     /// </summary>
 
-    public sealed class GenericScorer : RowToRowScorerBase, ITransformCanSavePfa, ITransformCanSaveOnnx
+    public sealed class GenericScorer : RowToRowScorerBase, ITransformCanSavePfa, ITransformCanSaveOnnx, ITransformCanSavePmf
     {
         public const string LoadName = "GenericScorer";
 
@@ -142,6 +143,8 @@ namespace Microsoft.ML.Runtime.Data
 
         public bool CanSaveOnnx => (Bindable as ICanSaveOnnx)?.CanSaveOnnx == true;
 
+        public bool CanSavePmf => (Bindable as ICanSavePmf)?.CanSavePmf == true;
+
         /// <summary>
         /// The <see cref="SignatureDataScorer"/> entry point for creating a <see cref="GenericScorer"/>.
         /// </summary>
@@ -236,6 +239,10 @@ namespace Microsoft.ML.Runtime.Data
                 foreach (var name in outVariableNames)
                     ctx.RemoveVariable(name, true);
             }
+        }
+
+        public void SaveAsPmf(PmfContext ctx)
+        {
         }
 
         protected override bool WantParallelCursors(Func<int, bool> predicate)

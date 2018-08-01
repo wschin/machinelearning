@@ -19,6 +19,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Newtonsoft.Json.Linq;
 
 [assembly: LoadableClass(TermTransform.Summary, typeof(TermTransform), typeof(TermTransform.Arguments), typeof(SignatureDataTransform),
@@ -720,6 +721,14 @@ namespace Microsoft.ML.Runtime.Data
             node.AddAttribute("classes_strings", terms.DenseValues());
             node.AddAttribute("default_int64", -1);
             node.AddAttribute("default_string", DvText.Empty);
+            return true;
+        }
+ 
+        public override bool CanSavePmf => true;
+
+        protected override bool SaveAsPmfCore(PmfContext ctx, int iinfo, ColInfo info, string srcVariableName, string dstVariableName)
+        {
+            Console.WriteLine("Term transform");
             return true;
         }
 

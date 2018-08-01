@@ -17,6 +17,7 @@ using Microsoft.ML.Runtime.Learners;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Microsoft.ML.Runtime.Numeric;
 using Microsoft.ML.Runtime.Training;
 using Microsoft.ML.Runtime.Internal.Internallearn;
@@ -292,6 +293,7 @@ namespace Microsoft.ML.Runtime.Learners
         ICanGetSummaryAsIDataView,
         ICanGetSummaryAsIRow,
         ISingleCanSavePfa,
+        ISingleCanSavePmf,
         ISingleCanSaveOnnx
     {
         public const string LoaderSignature = "MultiClassLRExec";
@@ -334,6 +336,7 @@ namespace Microsoft.ML.Runtime.Learners
         public ColumnType OutputType { get; }
         public bool CanSavePfa => true;
         public bool CanSaveOnnx => true;
+        public bool CanSavePmf => true;
 
         internal MulticlassLogisticRegressionPredictor(IHostEnvironment env, ref VBuffer<Float> weights, int numClasses, int numFeatures, string[] labelNames, LinearModelStatistics stats = null)
             : base(env, RegistrationName)
@@ -854,6 +857,11 @@ namespace Microsoft.ML.Runtime.Learners
             node.AddAttribute("intercepts", _biases);
             node.AddAttribute("classlabels_strings", _labelNames);
             return true;
+        }
+
+        public bool SaveAsPmf(PmfContext ctx, string[] outputs, string featureColumn)
+        {
+            return false;
         }
 
         /// <summary>

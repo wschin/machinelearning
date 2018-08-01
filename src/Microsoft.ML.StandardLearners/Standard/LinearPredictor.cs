@@ -18,6 +18,7 @@ using Microsoft.ML.Runtime.Learners;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Microsoft.ML.Runtime.Numeric;
 using Newtonsoft.Json.Linq;
 
@@ -49,6 +50,7 @@ namespace Microsoft.ML.Runtime.Learners
         IPredictorWithFeatureWeights<Float>,
         IWhatTheFeatureValueMapper,
         ISingleCanSavePfa,
+        ISingleCanSavePmf,
         ISingleCanSaveOnnx
     {
         protected readonly VBuffer<Float> Weight;
@@ -102,6 +104,8 @@ namespace Microsoft.ML.Runtime.Learners
         public bool CanSavePfa => true;
 
         public bool CanSaveOnnx => true;
+
+        public bool CanSavePmf => true;
 
         /// <summary>
         /// Constructs a new linear predictor.
@@ -243,6 +247,11 @@ namespace Microsoft.ML.Runtime.Learners
             node.AddAttribute("coefficients", Weight.DenseValues());
             node.AddAttribute("intercepts", Bias);
             return true;
+        }
+
+        public bool SaveAsPmf(PmfContext ctx, string[] outputs, string featureColumn)
+        {
+            return false;
         }
 
         // Generate the score from the given values, assuming they have already been normalized.

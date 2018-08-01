@@ -16,6 +16,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Microsoft.ML.Runtime.Internal.Internallearn;
 using Newtonsoft.Json.Linq;
 
@@ -35,7 +36,7 @@ namespace Microsoft.ML.Runtime.Data
     /// This is a base class for wrapping <see cref="IPredictor"/>s in an <see cref="ISchemaBindableMapper"/>.
     /// </summary>
     public abstract class SchemaBindablePredictorWrapperBase : ISchemaBindableMapper, ICanSaveModel, ICanSaveSummary,
-        IBindableCanSavePfa, IBindableCanSaveOnnx
+        IBindableCanSavePfa, IBindableCanSaveOnnx, IBindableCanSavePmf
     {
         // The ctor guarantees that Predictor is non-null. It also ensures that either
         // ValueMapper or FloatPredictor is non-null (or both). With these guarantees,
@@ -47,6 +48,8 @@ namespace Microsoft.ML.Runtime.Data
         public bool CanSavePfa => (ValueMapper as ICanSavePfa)?.CanSavePfa == true;
 
         public bool CanSaveOnnx => (ValueMapper as ICanSaveOnnx)?.CanSaveOnnx == true;
+
+        public bool CanSavePmf => (ValueMapper as ICanSavePmf)?.CanSavePmf == true;
 
         public SchemaBindablePredictorWrapperBase(IPredictor predictor)
         {
@@ -100,6 +103,8 @@ namespace Microsoft.ML.Runtime.Data
         }
 
         public virtual bool SaveAsOnnx(OnnxContext ctx, RoleMappedSchema schema, string[] outputNames) => false;
+
+        public virtual bool SaveAsPmf(PmfContext ctx, RoleMappedSchema schema, string[] outputNames) => false;
 
         public ISchemaBoundMapper Bind(IHostEnvironment env, RoleMappedSchema schema)
         {
@@ -305,6 +310,11 @@ namespace Microsoft.ML.Runtime.Data
             return mapper.SaveAsOnnx(ctx, outputNames, ctx.GetVariableName(schema.Feature.Name));
         }
 
+        public override bool SaveAsPmf(PmfContext ctx, RoleMappedSchema schema, string[] outputNames)
+        {
+            return false;
+        }
+
         protected override ISchemaBoundMapper BindCore(IChannel ch, RoleMappedSchema schema)
         {
             var outputSchema = new ScoreMapperSchema(ScoreType, _scoreColumnKind);
@@ -419,6 +429,11 @@ namespace Microsoft.ML.Runtime.Data
             Contracts.Assert(ctx.ContainsColumn(schema.Feature.Name));
 
             return mapper.SaveAsOnnx(ctx, outputNames, ctx.GetVariableName(schema.Feature.Name));
+        }
+
+        public override bool SaveAsPmf(PmfContext ctx, RoleMappedSchema schema, string[] outputNames)
+        {
+            return false;
         }
 
         private void CheckValid(out IValueMapperDist distMapper)

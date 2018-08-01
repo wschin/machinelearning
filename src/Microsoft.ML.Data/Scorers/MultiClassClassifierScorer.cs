@@ -14,6 +14,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Microsoft.ML.Runtime.Numeric;
 using Newtonsoft.Json.Linq;
 
@@ -59,7 +60,7 @@ namespace Microsoft.ML.Runtime.Data
         /// </summary>
         // REVIEW: It seems like the attachment of metadata should be solvable in a manner
         // less ridiculously verbose than this.
-        public sealed class LabelNameBindableMapper : ISchemaBindableMapper, ICanSaveModel, IBindableCanSavePfa, IBindableCanSaveOnnx
+        public sealed class LabelNameBindableMapper : ISchemaBindableMapper, ICanSaveModel, IBindableCanSavePfa, IBindableCanSaveOnnx, IBindableCanSavePmf
         {
             public const string LoaderSignature = "LabelSlotNameMapper";
             private const string _innerDir = "InnerMapper";
@@ -78,6 +79,7 @@ namespace Microsoft.ML.Runtime.Data
             public VectorType Type => _type;
             public bool CanSavePfa => (_bindable as ICanSavePfa)?.CanSavePfa == true;
             public bool CanSaveOnnx => (_bindable as ICanSaveOnnx)?.CanSaveOnnx == true;
+            public bool CanSavePmf => (_bindable as ICanSavePmf)?.CanSavePmf == true;
             public ISchemaBindableMapper InnerBindable => _bindable;
 
             private static VersionInfo GetVersionInfo()
@@ -210,6 +212,11 @@ namespace Microsoft.ML.Runtime.Data
                 Contracts.Check(CanSaveOnnx, "Cannot be saved as ONNX.");
                 Contracts.Assert(_bindable is IBindableCanSaveOnnx);
                 return ((IBindableCanSaveOnnx)_bindable).SaveAsOnnx(ctx, schema, outputNames);
+            }
+
+            public bool SaveAsPmf(PmfContext ctx, RoleMappedSchema schema, string[] outputNames)
+            {
+                return false;
             }
 
             public ISchemaBoundMapper Bind(IHostEnvironment env, RoleMappedSchema schema)

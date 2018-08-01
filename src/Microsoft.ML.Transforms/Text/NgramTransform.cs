@@ -12,6 +12,7 @@ using Microsoft.ML.Runtime.CommandLine;
 using Microsoft.ML.Runtime.Data;
 using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Microsoft.ML.Runtime.EntryPoints;
 
 [assembly: LoadableClass(NgramTransform.Summary, typeof(NgramTransform), typeof(NgramTransform.Arguments), typeof(SignatureDataTransform),
@@ -191,6 +192,7 @@ namespace Microsoft.ML.Runtime.Data
             + "It does so by building a dictionary of ngrams and using the id in the dictionary as the index in the bag.";
 
         internal const string UserName = "NGram Transform";
+        public override bool CanSavePmf => true;
 
         private static VersionInfo GetVersionInfo()
         {
@@ -324,6 +326,12 @@ namespace Microsoft.ML.Runtime.Data
                         });
                 }
             }
+        }
+  
+        protected override bool SaveAsPmfCore(PmfContext ctx, int iinfo, ColInfo info, string srcVariableName, string dstVariableName)
+        {
+            Console.Write("Ngram");
+            return true;
         }
 
         private static string TestType(ColumnType type)

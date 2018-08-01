@@ -12,6 +12,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Newtonsoft.Json.Linq;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using System.Collections.Generic;
 
 [assembly: LoadableClass(typeof(BinaryClassifierScorer), typeof(BinaryClassifierScorer.Arguments), typeof(SignatureDataScorer),
@@ -23,7 +24,7 @@ using System.Collections.Generic;
 
 namespace Microsoft.ML.Runtime.Data
 {
-    public sealed class BinaryClassifierScorer : PredictedLabelScorerBase, ITransformCanSaveOnnx
+    public sealed class BinaryClassifierScorer : PredictedLabelScorerBase, ITransformCanSaveOnnx,  ITransformCanSavePmf
     {
         public sealed class Arguments : ThresholdArgumentsBase
         {
@@ -210,6 +211,11 @@ namespace Microsoft.ML.Runtime.Data
                     new[] { ctx.GetVariableName(outColumnNames[0]) }, ctx.GetNodeName(opType));
                 node.AddAttribute("threshold", 0.5);
             }
+        }
+
+        public override void SaveAsPmf(PmfContext ctx)
+        {
+            Console.Write("BC Scorer");
         }
 
         public override IDataTransform ApplyToData(IHostEnvironment env, IDataView newSource)

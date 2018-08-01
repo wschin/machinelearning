@@ -22,6 +22,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Microsoft.ML.Runtime.Training;
 using Microsoft.ML.Runtime.TreePredictor;
 using Newtonsoft.Json.Linq;
@@ -2786,7 +2787,8 @@ namespace Microsoft.ML.Runtime.FastTree
         IWhatTheFeatureValueMapper,
         ICanGetSummaryAsIRow,
         ISingleCanSavePfa,
-        ISingleCanSaveOnnx
+        ISingleCanSaveOnnx,
+        ISingleCanSavePmf
     {
         //The below two properties are necessary for tree Visualizer
         public Ensemble TrainedEnsemble { get; }
@@ -2812,6 +2814,7 @@ namespace Microsoft.ML.Runtime.FastTree
         public ColumnType OutputType => NumberType.Float;
         public bool CanSavePfa => true;
         public bool CanSaveOnnx => true;
+        public bool CanSavePmf => true;
 
         protected internal FastTreePredictionWrapper(IHostEnvironment env, string name, Ensemble trainedEnsemble, int numFeatures, string innerArgs)
             : base(env, name)
@@ -3125,6 +3128,11 @@ namespace Microsoft.ML.Runtime.FastTree
             node.AddAttribute("target_weights", classWeights);
 
             return true;
+        }
+
+        public virtual bool SaveAsPmf(PmfContext ctx, string[] outputNames, string featureColumn)
+        {
+            return false;
         }
 
         public void SaveSummary(TextWriter writer, RoleMappedSchema schema)

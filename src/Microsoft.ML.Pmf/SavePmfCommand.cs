@@ -31,10 +31,10 @@ namespace Microsoft.ML.Runtime.Model.Pmf
         public sealed class Arguments : DataCommand.ArgumentsBase
         {
             [Argument(ArgumentType.AtMostOnce, HelpText = "The path to write the output PMF to.", SortOrder = 1)]
-            public string PmfPath;
+            public string Pmf;
 
             [Argument(ArgumentType.AtMostOnce, HelpText = "The path to write the output JSON to.", SortOrder = 2)]
-            public string JsonPath;
+            public string Json;
 
             [Argument(ArgumentType.AtMostOnce, HelpText = "The 'name' property in the output ONNX. By default this will be the PMF extension-less name.", NullName = "<Auto>", SortOrder = 3)]
             public string Name;
@@ -55,8 +55,11 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             public ITransformModel Model;
         }
 
+        // PMF model file (in protobuf format) name (i.e., the path to PMF model file we are going to produce)
         private readonly string _outputModelPath;
+        // PMF model file (in text format) name (i.e., the path to PMF model file we are going to produce)
         private readonly string _outputJsonModelPath;
+        // PMF model name (can be different than model file name)
         private readonly string _name;
         private readonly string _domain;
         private readonly bool? _loadPredictor;
@@ -70,9 +73,9 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 : base(env, args, LoadName)
         {
             Host.CheckValue(args, nameof(args));
-            Utils.CheckOptionalUserDirectory(args.PmfPath, nameof(args.JsonPath));
-            _outputModelPath = string.IsNullOrWhiteSpace(args.PmfPath) ? null : args.PmfPath;
-            _outputJsonModelPath = string.IsNullOrWhiteSpace(args.JsonPath) ? null : args.JsonPath;
+            Utils.CheckOptionalUserDirectory(args.Pmf, nameof(args.Json));
+            _outputModelPath = string.IsNullOrWhiteSpace(args.Pmf) ? null : args.Pmf;
+            _outputJsonModelPath = string.IsNullOrWhiteSpace(args.Json) ? null : args.Json;
             if (args.Name == null && _outputModelPath != null)
                 _name = Path.GetFileNameWithoutExtension(_outputModelPath);
             else if (!string.IsNullOrWhiteSpace(args.Name))
@@ -102,10 +105,141 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             }
         }
 
-
         private void Run(IChannel ch)
         {
-            System.Console.Write("This is my command");
+            IDataLoader loader = null;
+            IPredictor rawPred = null;
+            IDataView view;
+            RoleMappedSchema trainSchema = null;
+
+            // What commands can invoke this? What does _model==null mean? Fail to load model? model file not specified?
+            if (_model == null)
+            {
+                // What commands can invoke this?
+                if (string.IsNullOrEmpty(Args.InputModelFile))
+                {
+                    loader = CreateLoader();
+                    rawPred = null;
+                    trainSchema = null;
+                    Host.CheckUserArg(Args.LoadPredictor != true, nameof(Args.LoadPredictor),
+                        "Cannot be set to true unless " + nameof(Args.InputModelFile) + " is also specifified.");
+                }
+                else
+                {
+                    // What commands can invoke this?
+                    LoadModelObjects(ch, _loadPredictor, out rawPred, true, out trainSchema, out loader);
+                }
+                view = loader;
+            }
+            else
+            {
+                // What commands can invoke this?
+                view = _model.Apply(Host, new EmptyDataView(Host, _model.InputSchema));
+            }
+
+            // Get the transform chain.
+            IDataView source;
+            IDataView end;
+            LinkedList<ITransformCanSavePmf> transforms;
+            GetPipe(ch, view, out source, out end, out transforms);
+            Host.Assert(transforms.Count == 0 || transforms.Last.Value == end);
+
+            var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            var versionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
+
+            var ctx = new PmfContextImpl();
+            // If we have a predictor, try to get the scorer for it.
+            if (rawPred != null)
+            {
+                RoleMappedData data;
+                if (trainSchema != null)
+                    data = new RoleMappedData(end, trainSchema.GetColumnRoleNames());
+                else
+                {
+                    // We had a predictor, but no roles stored in the model. Just suppose
+                    // default column names are OK, if present.
+                    data = new RoleMappedData(end, DefaultColumnNames.Label,
+                        DefaultColumnNames.Features, DefaultColumnNames.GroupId, DefaultColumnNames.Weight, DefaultColumnNames.Name, opt: true);
+                }
+
+                var scorePipe = ScoreUtils.GetScorer(rawPred, data, Host, trainSchema);
+                var scoreOnnx = scorePipe as ITransformCanSavePmf;
+                if (scoreOnnx?.CanSavePmf == true)
+                {
+                    Host.Assert(scorePipe.Source == end);
+                    end = scorePipe;
+                    transforms.AddLast(scoreOnnx);
+                }
+                else
+                {
+                    Contracts.CheckUserArg(_loadPredictor != true,
+                        nameof(Arguments.LoadPredictor), "We were explicitly told to load the predictor but we do not know how to save it as ONNX.");
+                    ch.Warning("We do not know how to save the predictor as ONNX. Ignoring.");
+                }
+            }
+            else
+            {
+                Contracts.CheckUserArg(_loadPredictor != true,
+                    nameof(Arguments.LoadPredictor), "We were explicitly told to load the predictor but one was not present.");
+            }
+
+            HashSet<string> inputColumns = new HashSet<string>();
+            //Create graph inputs.
+            for (int i = 0; i < source.Schema.ColumnCount; i++)
+            {
+                string colName = source.Schema.GetColumnName(i);
+                if(_inputsToDrop.Contains(colName))
+                    continue;
+
+                ctx.AddInputVariable(source.Schema.GetColumnType(i), colName);
+                inputColumns.Add(colName);
+            }
+
+            //Create graph nodes, outputs and intermediate values.
+            foreach (var trans in transforms)
+            {
+                Host.Assert(trans.CanSavePmf);
+                trans.SaveAsPmf(ctx);
+            }
+
+            //Add graph outputs.
+            for (int i = 0; i < end.Schema.ColumnCount; ++i)
+            {
+                if (end.Schema.IsHidden(i))
+                    continue;
+
+                var idataviewColumnName = end.Schema.GetColumnName(i);;
+                if (_outputsToDrop.Contains(idataviewColumnName) || _inputsToDrop.Contains(idataviewColumnName))
+                    continue;
+
+                var variableName = ctx.TryGetVariableName(idataviewColumnName);
+                if (variableName != null)
+                    ctx.AddOutputVariable(end.Schema.GetColumnType(i), variableName);
+            }
+        }
+
+        private void GetPipe(IChannel ch, IDataView end, out IDataView source, out IDataView trueEnd, out LinkedList<ITransformCanSavePmf> transforms)
+        {
+            Host.AssertValue(end);
+            source = trueEnd = (end as CompositeDataLoader)?.View ?? end;
+            IDataTransform transform = source as IDataTransform;
+            transforms = new LinkedList<ITransformCanSavePmf>();
+            while (transform != null)
+            {
+                ITransformCanSavePmf pmfTransform = transform as ITransformCanSavePmf;
+                if (pmfTransform == null || !pmfTransform.CanSavePmf)
+                {
+                    ch.Warning("Had to stop walkback of pipeline at {0} since it cannot save itself as ONNX.", transform.GetType().Name);
+                    while (source as IDataTransform != null)
+                        source = (source as IDataTransform).Source;
+
+                    return;
+                }
+                transforms.AddFirst(pmfTransform);
+                transform = (source = transform.Source) as IDataTransform;
+            }
+
+            Host.AssertValue(source);
         }
 
         public sealed class Output

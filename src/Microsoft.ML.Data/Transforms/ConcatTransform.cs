@@ -17,6 +17,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Newtonsoft.Json.Linq;
 
 [assembly: LoadableClass(ConcatTransform.Summary, typeof(ConcatTransform), typeof(ConcatTransform.TaggedArguments), typeof(SignatureDataTransform),
@@ -29,7 +30,7 @@ namespace Microsoft.ML.Runtime.Data
 {
     using T = PfaUtils.Type;
 
-    public sealed class ConcatTransform : RowToRowMapperTransformBase, ITransformCanSavePfa, ITransformCanSaveOnnx
+    public sealed class ConcatTransform : RowToRowMapperTransformBase, ITransformCanSavePfa, ITransformCanSaveOnnx, ITransformCanSavePmf
     {
         public sealed class Column : ManyToOneColumn
         {
@@ -533,6 +534,8 @@ namespace Microsoft.ML.Runtime.Data
 
         public bool CanSaveOnnx => true;
 
+        public bool CanSavePmf => true;
+
         public override ISchema Schema => _bindings;
 
         /// <summary>
@@ -726,6 +729,10 @@ namespace Microsoft.ML.Runtime.Data
                 node.AddAttribute("inputList", inputList.Select(x => x.Key));
                 node.AddAttribute("inputdimensions", inputList.Select(x => x.Value));
             }
+        }
+
+        public void SaveAsPmf(PmfContext ctx)
+        {
         }
 
         protected override bool? ShouldUseParallelCursors(Func<int, bool> predicate)

@@ -17,6 +17,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Microsoft.ML.Runtime.Internal.Internallearn;
 using Newtonsoft.Json.Linq;
 using Microsoft.ML.Runtime.EntryPoints;
@@ -216,7 +217,7 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
     }
 
     public abstract class ValueMapperCalibratedPredictorBase : CalibratedPredictorBase, IValueMapperDist, IWhatTheFeatureValueMapper,
-        IDistCanSavePfa, IDistCanSaveOnnx
+        IDistCanSavePfa, IDistCanSaveOnnx, IDistCanSavePmf
     {
         private readonly IValueMapper _mapper;
         private readonly IWhatTheFeatureValueMapper _whatTheFeature;
@@ -226,6 +227,7 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
         public ColumnType DistType => NumberType.Float;
         public bool CanSavePfa => (_mapper as ICanSavePfa)?.CanSavePfa == true;
         public bool CanSaveOnnx => (_mapper as ICanSaveOnnx)?.CanSaveOnnx == true;
+        public bool CanSavePmf => (_mapper as ICanSavePmf)?.CanSavePmf == true;
 
         protected ValueMapperCalibratedPredictorBase(IHostEnvironment env, string name, IPredictorProducing<Float> predictor, ICalibrator calibrator)
             : base(env, name, predictor, calibrator)
@@ -312,6 +314,11 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
                 ctx.RemoveVariable(outputNames[1], true);
 
             return true;
+        }
+
+        public bool SaveAsPmf(PmfContext ctx, string[] outputNames, string featureColumnName)
+        {
+            return false;
         }
 
     }
@@ -510,7 +517,7 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
     }
 
     public sealed class SchemaBindableCalibratedPredictor : CalibratedPredictorBase, ISchemaBindableMapper, ICanSaveModel,
-        IBindableCanSavePfa, IBindableCanSaveOnnx, IWhatTheFeatureValueMapper
+        IBindableCanSavePfa, IBindableCanSaveOnnx, IBindableCanSavePmf, IWhatTheFeatureValueMapper
     {
         private sealed class Bound : ISchemaBoundRowMapper
         {
@@ -618,6 +625,8 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
         public bool CanSavePfa => (_bindable as ICanSavePfa)?.CanSavePfa == true;
 
         public bool CanSaveOnnx => (_bindable as ICanSaveOnnx)?.CanSaveOnnx == true;
+ 
+        public bool CanSavePmf => (_bindable as ICanSavePmf)?.CanSavePmf == true;
 
         public SchemaBindableCalibratedPredictor(IHostEnvironment env, IPredictorProducing<Single> predictor, ICalibrator calibrator)
             : base(env, LoaderSignature, predictor, calibrator)
@@ -664,6 +673,11 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
             Host.CheckParam(Utils.Size(outputs) == 2, nameof(outputs), "Expected this to have two outputs");
             Host.CheckValue(schema, nameof(schema));
             Host.Check(CanSaveOnnx, "Called despite not being savable");
+            return false;
+        }
+
+        public bool SaveAsPmf(PmfContext ctx, RoleMappedSchema schema, string[] outputs)
+        {
             return false;
         }
 
@@ -1324,7 +1338,7 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
         }
     }
 
-    public sealed class PlattCalibrator : ICalibrator, IParameterMixer, ICanSaveModel, ISingleCanSavePfa, ISingleCanSaveOnnx
+    public sealed class PlattCalibrator : ICalibrator, IParameterMixer, ICanSaveModel, ISingleCanSavePfa, ISingleCanSaveOnnx, ISingleCanSavePmf
     {
         public const string LoaderSignature = "PlattCaliExec";
         public const string RegistrationName = "PlattCalibrator";
@@ -1344,6 +1358,7 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
         public Double ParamB { get; }
         public bool CanSavePfa => true;
         public bool CanSaveOnnx => true;
+        public bool CanSavePmf => true;
 
         public PlattCalibrator(IHostEnvironment env, Double paramA, Double paramB)
         {
@@ -1447,6 +1462,11 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
                 new[] { scoreProbablityColumnNames[1] }, ctx.GetNodeName(opType), "ai.onnx");
 
             return true;
+        }
+
+        public bool SaveAsPmf(PmfContext ctx, string[] scoreProbablityColumnNames, string featureColumnName)
+        {
+            return false;
         }
 
         public string GetSummary()

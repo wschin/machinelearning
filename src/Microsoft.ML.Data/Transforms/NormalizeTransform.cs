@@ -13,6 +13,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 
@@ -95,6 +96,7 @@ namespace Microsoft.ML.Runtime.Data
 
         public override bool CanSavePfa => true;
         public override bool CanSaveOnnx => true;
+        public override bool CanSavePmf => true;
         public const string LoaderSignature = "NormalizeTransform";
         internal const string LoaderSignatureOld = "NormalizeFunction";
         private static VersionInfo GetVersionInfo()
@@ -327,6 +329,11 @@ namespace Microsoft.ML.Runtime.Data
             }
 
             return false;
+        }
+
+        protected override bool SaveAsPmfCore(PmfContext ctx, int iinfo, ColInfo info, string srcVariableName, string dstVariableName)
+        {
+            return true;
         }
 
         protected override ColumnType GetColumnTypeCore(int iinfo)

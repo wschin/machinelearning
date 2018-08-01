@@ -11,6 +11,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Newtonsoft.Json.Linq;
 
 namespace Microsoft.ML.Runtime.Data
@@ -19,7 +20,7 @@ namespace Microsoft.ML.Runtime.Data
     /// Class for scorers that compute on additional "PredictedLabel" column from the score column.
     /// Currently, this scorer is used for binary classification, multi-class classification, and clustering.
     /// </summary>
-    public abstract class PredictedLabelScorerBase : RowToRowScorerBase, ITransformCanSavePfa, ITransformCanSaveOnnx
+    public abstract class PredictedLabelScorerBase : RowToRowScorerBase, ITransformCanSavePfa, ITransformCanSaveOnnx, ITransformCanSavePmf
     {
         public abstract class ThresholdArgumentsBase : ScorerArgumentsBase
         {
@@ -285,6 +286,8 @@ namespace Microsoft.ML.Runtime.Data
         public bool CanSavePfa => (Bindable as ICanSavePfa)?.CanSavePfa == true;
 
         public bool CanSaveOnnx => (Bindable as ICanSaveOnnx)?.CanSaveOnnx == true;
+ 
+        public bool CanSavePmf => (Bindable as ICanSavePmf)?.CanSavePmf == true;
 
         protected PredictedLabelScorerBase(ScorerArgumentsBase args, IHostEnvironment env, IDataView data,
             ISchemaBoundMapper mapper, RoleMappedSchema trainSchema, string registrationName, string scoreColKind, string scoreColName,
@@ -390,6 +393,10 @@ namespace Microsoft.ML.Runtime.Data
                 foreach (var name in outVariableNames)
                     ctx.RemoveVariable(name, true);
             }
+        }
+
+        public virtual void SaveAsPmf(PmfContext ctx)
+        {
         }
 
         protected override bool WantParallelCursors(Func<int, bool> predicate)

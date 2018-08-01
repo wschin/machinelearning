@@ -10,6 +10,7 @@ using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Newtonsoft.Json.Linq;
 
 namespace Microsoft.ML.Runtime.Data
@@ -234,7 +235,7 @@ namespace Microsoft.ML.Runtime.Data
     /// This class provides the implementation of ISchema and IRowCursor.
     /// </summary>
     public abstract class OneToOneTransformBase : RowToRowMapperTransformBase, ITransposeDataView, ITransformCanSavePfa,
-        ITransformCanSaveOnnx
+        ITransformCanSaveOnnx, ITransformCanSavePmf
     {
         /// <summary>
         /// Information about an added column - the name of the new column, the index of the
@@ -470,6 +471,8 @@ namespace Microsoft.ML.Runtime.Data
         public virtual bool CanSavePfa => false;
 
         public virtual bool CanSaveOnnx => false;
+ 
+        public virtual bool CanSavePmf => false;
 
         protected OneToOneTransformBase(IHostEnvironment env, string name, OneToOneColumn[] column,
             IDataView input, Func<ColumnType, string> testType)
@@ -594,6 +597,19 @@ namespace Microsoft.ML.Runtime.Data
             }
         }
 
+        public void SaveAsPmf(PmfContext ctx)
+        {
+            Host.CheckValue(ctx, nameof(ctx));
+            Host.Assert(CanSavePmf);
+
+            for (int iinfo = 0; iinfo < Infos.Length; ++iinfo)
+            {
+                ColInfo info = Infos[iinfo];
+                string sourceColumnName = Source.Schema.GetColumnName(info.Source);
+                SaveAsPmfCore(ctx, iinfo, info, ctx.GetVariableName(sourceColumnName), ctx.AddIntermediateVariable(Schema.GetColumnType(_bindings.MapIinfoToCol(iinfo)), info.Name));
+            }
+        }
+
         /// <summary>
         /// Called by <see cref="SaveAsPfa"/>. Should be implemented by subclasses that return
         /// <c>true</c> from <see cref="CanSavePfa"/>. Will be called 
@@ -617,6 +633,9 @@ namespace Microsoft.ML.Runtime.Data
         }
 
         protected virtual bool SaveAsOnnxCore(OnnxContext ctx, int iinfo, ColInfo info, string srcVariableName,
+            string dstVariableName) => false;
+
+        protected virtual bool SaveAsPmfCore(PmfContext ctx, int iinfo, ColInfo info, string srcVariableName,
             string dstVariableName) => false;
 
         public sealed override ISchema Schema => _bindings;
