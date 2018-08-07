@@ -11,6 +11,7 @@ using Microsoft.ML.Runtime.Data;
 using Microsoft.ML.Runtime.Model;
 using Microsoft.ML.Runtime.Model.Onnx;
 using Microsoft.ML.Runtime.Model.Pfa;
+using Microsoft.ML.Runtime.Model.Pmf;
 using Microsoft.ML.Runtime.Internal.Internallearn;
 using Newtonsoft.Json.Linq;
 
@@ -437,6 +438,7 @@ namespace Microsoft.ML.Runtime.Data
             public bool CanSaveOnnx => true;
             public abstract bool OnnxInfo(OnnxContext ctx, OnnxNode nodeProtoWrapper, int featureCount);
 
+
             public abstract Delegate GetGetter(IRow input, int icol);
 
             public abstract void AttachMetadata(MetadataDispatcher.Builder bldr, ColumnType typeSrc);
@@ -460,6 +462,8 @@ namespace Microsoft.ML.Runtime.Data
                 }
                 throw host.ExceptUserArg(nameof(AffineArgumentsBase.Column), "Wrong column type. Expected: R4, R8, Vec<R4, n> or Vec<R8, n>. Got: {0}.", typeSrc.ToString());
             }
+
+            public abstract bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount);
 
             private abstract class ImplOne<TFloat> : AffineColumnFunction
             {
@@ -652,6 +656,11 @@ namespace Microsoft.ML.Runtime.Data
                     verWeCanReadBack: 0x00010001,
                     loaderSignature: LoaderSignature);
             }
+
+            public bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+            {
+                throw new NotImplementedException();
+            }
         }
 
         public abstract partial class BinColumnFunction : IColumnFunction
@@ -713,6 +722,11 @@ namespace Microsoft.ML.Runtime.Data
                     verReadableCur: 0x00010001,
                     verWeCanReadBack: 0x00010001,
                     loaderSignature: LoaderSignature);
+            }
+
+            public bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+            {
+                throw new NotImplementedException();
             }
         }
 

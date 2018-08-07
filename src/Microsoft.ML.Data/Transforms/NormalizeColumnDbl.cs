@@ -14,6 +14,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Microsoft.ML.Runtime.Data
 {
+    using Microsoft.ML.Runtime.Model.Pmf;
     // !!! WARNING !!!
     // This file contains the Double version for normalizers and is almost identical with NormalizeColumnSng.cs
     // When making changes to one, use BeyondCompare or a similar tool to view diffs and propagate
@@ -595,6 +596,11 @@ namespace Microsoft.ML.Runtime.Data
                             };
                         return del;
                     }
+
+                    public override bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+                    {
+                        throw new NotImplementedException();
+                    }
                 }
 
                 // REVIEW: Does it make sense to have 3 separate classes for the 3 cases in GetResult?
@@ -841,6 +847,11 @@ namespace Microsoft.ML.Runtime.Data
                         }
                         Contracts.Assert(ii == count);
                         Contracts.Assert(inz == nz.Length);
+                    }
+
+                    public override bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+                    {
+                        throw new NotImplementedException();
                     }
                 }
             }

@@ -606,7 +606,9 @@ namespace Microsoft.ML.Runtime.Data
             {
                 ColInfo info = Infos[iinfo];
                 string sourceColumnName = Source.Schema.GetColumnName(info.Source);
-                SaveAsPmfCore(ctx, iinfo, info, ctx.GetVariableName(sourceColumnName), ctx.AddIntermediateVariable(Schema.GetColumnType(_bindings.MapIinfoToCol(iinfo)), info.Name));
+                SaveAsPmfCore(ctx, iinfo, info,
+                    ctx.RetrieveVariableNameOrCreateOne(sourceColumnName),
+                    ctx.CreateVariableName(info.Name));
             }
         }
 
