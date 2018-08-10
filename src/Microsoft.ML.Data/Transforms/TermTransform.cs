@@ -728,7 +728,37 @@ namespace Microsoft.ML.Runtime.Data
 
         protected override bool SaveAsPmfCore(PmfContext ctx, int iinfo, ColInfo info, string srcVariableName, string dstVariableName)
         {
-            Console.WriteLine("Term transform");
+            if (!info.TypeSrc.ItemType.IsText)
+                return false; // ONNX can handle integer cases, so I don't know why ONNX converter adds this check
+
+            // Extract dictionary information from the raw data structure
+            var terms = default(VBuffer<DvText>);
+            TermMap<DvText> map = (TermMap<DvText>)_termMap[iinfo].Map;
+            map.GetTerms(ref terms);
+            var dictionaryKeys = new List<string>();
+            var dictionaryVals = new List<int>();
+            int i = 0;
+            foreach (var t in terms.DenseValues())
+            {
+                dictionaryKeys.Add(t.ToString());
+                dictionaryVals.Add(i);
+                ++i;
+            }
+
+            // Make dictionary and its reference
+            var dName = ctx.CreateVariableName("dictionary");
+            var dExp = PmfUtils.MakeExpressionStringToInt64Map(dictionaryKeys, dictionaryVals);
+            var dDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(dName, dExp));
+            ctx.AddExpression(dDef);
+            var dRef = PmfUtils.MakeValueProtoVariableReference(dName);
+
+            // Compute output from input 
+            var xName = ctx.CreateVariableName(srcVariableName);
+            var xRef = PmfUtils.MakeValueProtoVariableReference(xName);
+            var yName = ctx.CreateVariableName(dstVariableName);
+            var yDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(yName, PmfUtils.MakeElementAccess(dRef, xRef)));
+            ctx.AddExpression(yDef);
+
             return true;
         }
 

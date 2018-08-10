@@ -5,6 +5,7 @@
 using Float = System.Single;
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.ML.Runtime;
@@ -327,11 +328,165 @@ namespace Microsoft.ML.Runtime.Data
                 }
             }
         }
-  
+
         protected override bool SaveAsPmfCore(PmfContext ctx, int iinfo, ColInfo info, string srcVariableName, string dstVariableName)
         {
-            Console.Write("Ngram");
+            var vectorSize = info.TypeSrc.ValueCount;
+            var gramLength = _exes[iinfo].NgramLength;
+            var skipLength = _exes[iinfo].SkipLength;
+            
+            var outputName = ctx.CreateVariableName(info.Name);
+            var outputRef = PmfUtils.MakeValueProtoVariableReference(outputName);
+
+            // Initialize term-to-index dictionary
+            var map = _ngramMaps[iinfo];
+            uint[] sequence = new uint[gramLength+skipLength];
+            var dictionaryKeys = new List<string>();
+            var dictionaryVals = new List<int>();
+            for (int i = 0; i < map.Count; ++i)
+            {
+                map.GetById(i, ref sequence);
+                dictionaryKeys.Add(string.Join(",", sequence));
+                dictionaryVals.Add(i);
+            }
+            var termToIndexMapName = ctx.CreateVariableName("term_to_index_map");
+            var termToIndexMapExp = PmfUtils.MakeExpressionStringToInt64Map(dictionaryKeys, dictionaryVals);
+            var termToIndexMapDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(termToIndexMapName, termToIndexMapExp));
+            ctx.AddExpression(termToIndexMapDef);
+            var termToIndexRef = PmfUtils.MakeValueProtoVariableReference(termToIndexMapName);
+
+            // Build function to access sub-array and convert it into a string
+            // Input
+            var pathName = ctx.CreateVariableName("paths");
+            var pathDecl = PmfUtils.MakeScalarDeclProto(
+                pathName, ONNX.TensorProto.Types.DataType.String);
+            var keyName = ctx.CreateVariableName("key");
+            var keyRef = PmfUtils.MakeValueProtoVariableReference("pathName");
+            // Output
+            var keyDecl = PmfUtils.MakeScalarDeclProto(
+                keyName, ONNX.TensorProto.Types.DataType.String);
+            var lambdaBody = new List<LotusvNext.Expressions.Expression>();
+            // Step 1: Produce indexes from input string
+            var idsName = ctx.CreateVariableName("ids");
+            var idsExp = PmfUtils.MakeSimpleCall("Split", PmfUtils.MakeStringLiteralExpression(","), keyRef);
+            var idsCastExp = PmfUtils.MakeSimpleCall("Cast", idsExp, PmfUtils.MakeStringLiteralExpression("Int64"));
+            var idsDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(idsName, idsCastExp));
+            lambdaBody.Add(idsDef);
+            var idsRef = PmfUtils.MakeValueProtoVariableReference(idsName);
+            // Step 2: extract elements
+            var elemsName = ctx.CreateVariableName("subVector");
+            var elemsExp = PmfUtils.MakeElementAccess(PmfUtils.MakeValueProtoVariableReference("input"), idsRef);
+            var elemsDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(elemsName, elemsExp));
+            lambdaBody.Add(elemsDef);
+            var elemsRef = PmfUtils.MakeValueProtoVariableReference(elemsName);
+            // Step 3: join elements
+            var joinName = ctx.CreateVariableName("indexString");
+            var joinSep = PmfUtils.MakeStringLiteralExpression(",");
+            var joinExp = PmfUtils.MakeSimpleCall("Join", joinSep, elemsDef);
+            var joinDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(joinName, joinExp));
+            lambdaBody.Add(joinDef);
+            var joinRef = PmfUtils.MakeValueProtoVariableReference(joinName);
+            // Step 4: retrieve the true key
+            var keyExp = PmfUtils.MakeElementAccess(termToIndexRef, joinRef);
+            var keyDef = PmfUtils.MakeSet(keyName, keyExp);
+            lambdaBody.Add(keyDef);
+            // Create the function with the components we have
+            var accessFunction = PmfUtils.MakeLambdaExpression(pathDecl, keyDecl, lambdaBody);
+            var accessDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding("access", accessFunction));
+            ctx.AddExpression(accessFunction);
+
+            var iName = ctx.CreateVariableName("i");
+            var iFor = PmfUtils.MakeSimpleFor(iName, 0, gramLength, 1);
+
+            var nName = ctx.CreateVariableName("n");
+            var nFor = PmfUtils.MakeSimpleFor(nName, 0, vectorSize, 1);
+
+            // Extract sub-vector
+            var inputRef = PmfUtils.MakeValueProtoVariableReference("input");
+            var rangeExp = PmfUtils.MakeRange(0, gramLength + skipLength, PmfUtils.MakeValueProtoVariableReference(iName));
+            var extractedName = ctx.CreateVariableName("buffer");
+            var extractedExp = PmfUtils.MakeElementAccess(inputRef, rangeExp);
+            var extractedDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(extractedName, extractedExp));
+            nFor.For.Body.Add(extractedDef);
+            var extractedRef = PmfUtils.MakeValueProtoVariableReference(extractedName);
+            // Define an empty dictionary
+            var poolName = ctx.CreateVariableName("localPool");
+            var poolExp = PmfUtils.MakeExpressionStringToInt64Map();
+            var poolDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(poolName, poolExp));
+            nFor.For.Body.Add(poolDef);
+            var poolRef = PmfUtils.MakeValueProtoVariableReference(poolName);
+            
+            // slotRefs[i] denotes s_i  
+            var slotRefs = new Dictionary<int, LotusvNext.Expressions.Expression>();
+            var layer = MakeLayer(ctx, ref slotRefs, 0, gramLength, poolRef);
+            for (int n = 1; n < gramLength; ++n)
+            {
+                var new_layer = MakeLayer(ctx, ref slotRefs, n, gramLength, poolRef);
+                layer.For.Body.Add(new_layer);
+                layer = new_layer;
+            }
+
+            nFor.For.Body.Add(layer);
+
+            // Update output with keys
+            var tupleName = ctx.CreateVariableName("iterator");
+            var tupleRef = PmfUtils.MakeValueProtoVariableReference(tupleName);
+            var forEachExp = PmfUtils.MakeForEach(tupleName, poolRef);
+            var posExp = PmfUtils.MakeElementAccess(tupleRef, PmfUtils.MakeInt64LiteralExpression(0));
+            var valExp = PmfUtils.MakeElementAccess(tupleRef, PmfUtils.MakeInt64LiteralExpression(1));
+            var currentExp = PmfUtils.MakeElementAccess(outputRef, posExp);
+            var updateExp = PmfUtils.MakeSimpleCall("Assign", outputRef, posExp, PmfUtils.MakeSimpleCall("Add", currentExp, valExp));
+            forEachExp.ForEach.Body.Add(updateExp);
+
+            iFor.For.Body.Add(nFor);
+            ctx.AddExpression(iFor);
+            
             return true;
+        }
+
+        private static LotusvNext.Expressions.Expression MakeLayer(PmfContext ctx,
+            ref Dictionary<int, LotusvNext.Expressions.Expression> S, int l,int nMax,
+            LotusvNext.Expressions.Expression dRef)
+        {
+            string sName = ctx.CreateVariableName("s_" + l.ToString());
+            var sLoopExp = PmfUtils.MakeSimpleFor(sName, 0, nMax, 1);
+
+            S[l] = PmfUtils.MakeValueProtoVariableReference(sName);
+
+            var idsName = ctx.CreateVariableName("indexes_" + l.ToString());
+            var idsDefExp = PmfUtils.MakeInt64ArrayDefinition(idsName, Enumerable.Range(0, nMax).Select(x=>(long)x));
+            sLoopExp.For.Body.Add(idsDefExp);
+            var idsRef = PmfUtils.MakeValueProtoVariableReference(idsName);
+
+            string jName = ctx.CreateVariableName("j_" + l.ToString());
+
+            var jLoopExp = PmfUtils.MakeSimpleFor(jName, 0, nMax, 1);
+            var jRef = PmfUtils.MakeValueProtoVariableReference(jName); // in the beginning of a loop
+
+            for(int k = 0; k < l; k++)
+            {
+                // Build j > s_k
+                var ifExp = PmfUtils.MakeIf(PmfUtils.MakeSimpleCall(">", jRef, S[k]));
+
+                // Get ids[j] and calculate ids[j]+1
+                var iJExp = PmfUtils.MakeElementAccess(idsRef, jRef);
+                var oneExp = PmfUtils.MakeInt64LiteralExpression(1);
+                var newValExp = PmfUtils.MakeSimpleCall("Add", iJExp, oneExp);
+
+                // Do ids[j] = ids[j]+1
+                var p1Call = PmfUtils.MakeSimpleCall("Assign", idsRef, jRef, newValExp);
+
+                ifExp.IfThen.IfThen.ThenClause.Add(p1Call); // Need to have a wrapper over if... (and other block-like operators)
+
+                jLoopExp.For.Body.Add(ifExp);
+
+            }
+            var idsString = PmfUtils.MakeSimpleCall("Join", PmfUtils.MakeStringLiteralExpression(","), idsRef);
+            var storeCall = PmfUtils.MakeSimpleCall("Insert", dRef, idsString, PmfUtils.MakeFloatLiteralExpression(1f));
+            jLoopExp.For.Body.Add(storeCall);
+            sLoopExp.For.Body.Add(jLoopExp);
+
+            return sLoopExp;
         }
 
         private static string TestType(ColumnType type)
