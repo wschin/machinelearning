@@ -231,7 +231,7 @@ namespace Microsoft.ML.Runtime.Data
                 var srcName = ctx.RetrieveVariableNameOrCreateOne(outColumnNames[2]);
                 var dstName = ctx.CreateVariableName(outColumnNames[0]);
                 var tName = ctx.Declare(0.5f);
-                var setExp = PmfUtils.MakeSet(dstName, PmfUtils.Call(">", PmfUtils.MakeFunRef(srcName), ctx.GetExp(tName)));
+                var setExp = PmfUtils.MakeSet(dstName, PmfUtils.Call("Greater", PmfUtils.MakeFunRef(srcName), ctx.GetExp(tName)));
                 ctx.AddExpression(setExp);
             }
         }

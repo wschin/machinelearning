@@ -1473,7 +1473,21 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
 
         public bool SaveAsPmf(PmfContext ctx, string[] scoreProbablityColumnNames, string featureColumnName)
         {
-            return false;
+            var scoreName = ctx.RetrieveVariableNameOrCreateOne(scoreProbablityColumnNames[0]);
+            var alphaName = ctx.Declare(-(float)ParamA, "alpha");
+            var betaName = ctx.Declare(-(float)ParamB);
+            ctx.AddExpression(ctx.GetDef(alphaName));
+            ctx.AddExpression(ctx.GetDef(betaName));
+
+            var mulExp = PmfUtils.Call("Mul", ctx.GetRef(alphaName), ctx.GetRef(scoreName));
+            var addExp = PmfUtils.Call("Add", ctx.GetRef(betaName), mulExp);
+            var sigmoidExp = PmfUtils.Call("Sigmoid", addExp);
+
+            var dstName = ctx.CreateVariableName(scoreProbablityColumnNames[1]);
+            var setExp = PmfUtils.MakeSet(dstName, sigmoidExp);
+
+            ctx.AddExpression(setExp);
+            return true;
         }
 
         public string GetSummary()

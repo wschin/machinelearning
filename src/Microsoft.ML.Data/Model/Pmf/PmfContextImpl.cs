@@ -103,10 +103,9 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             _refPool[name] = PmfUtils.MakeVarRef(name);
         }
 
-        public void AddOutputVariable(ColumnType columnType, string colName)
+        public void AddOutputVariable(ColumnType columnType, string name)
         {
             // Declare name in IR
-            var name = CreateVariableName(colName);
             // Create TypeProto according to the input column
             var typeProto = PmfUtils.MakeType(columnType);
             _modelOutputParameters[name] = typeProto;
@@ -134,7 +133,8 @@ namespace Microsoft.ML.Runtime.Model.Pmf
         {
             var modelProto = new ModelProto
             {
-                IrVersion = 0L,
+                Profile = "ONNX",
+                IrVersion = 3L,
                 ProducerName = "ML.NET",
                 ProducerVersion = "0",
                 Domain = "com.microsoft",
@@ -311,7 +311,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
         {
             var binding = PmfUtils.MakeBinding(iName, PmfUtils.Make(iStart));
             var iEndExp = PmfUtils.Make(iEnd);
-            var condExp = PmfUtils.Call("<", GetRef(iName), iEndExp);
+            var condExp = PmfUtils.Call("Less", GetRef(iName), iEndExp);
             var iStepProto = PmfUtils.MakeSet(iName, PmfUtils.Make(iStep)).Set;
 
             return MakeFor(binding, condExp, iStepProto);
@@ -320,7 +320,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             string iName, string startName, string endName, long iStep=1)
         {
             var binding = PmfUtils.MakeBinding(iName, PmfUtils.MakeVarRef(startName));
-            var cond = PmfUtils.Call("<", GetRef(iName) , PmfUtils.MakeVarRef(endName));
+            var cond = PmfUtils.Call("Less", GetRef(iName) , PmfUtils.MakeVarRef(endName));
             var iStepProto = PmfUtils.MakeSet(iName, PmfUtils.Make(iStep)).Set;
 
             return MakeFor(binding, cond, iStepProto);

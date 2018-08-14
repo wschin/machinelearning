@@ -414,23 +414,32 @@ namespace Microsoft.ML.Runtime.Model.Pmf
         // Helper functions for creating types
         public static LotusvNext.Types.TypeProto MakeInt64Type()
         {
-            return new LotusvNext.Types.TypeProto
+            return new LotusvNext.Types.TypeProto()
             {
-                ScalarType = ONNX.TensorProto.Types.DataType.Int64
+                ScalarType = new LotusvNext.Types.TypeProto.Types.Scalar()
+                {
+                    DataType = ONNX.TensorProto.Types.DataType.Int64
+                }
             };
         }
         public static LotusvNext.Types.TypeProto MakeFloatType()
         {
-            return new LotusvNext.Types.TypeProto
+            return new LotusvNext.Types.TypeProto()
             {
-                ScalarType = ONNX.TensorProto.Types.DataType.Float
+                ScalarType = new LotusvNext.Types.TypeProto.Types.Scalar()
+                {
+                    DataType = ONNX.TensorProto.Types.DataType.Float
+                }
             };
         }
         public static LotusvNext.Types.TypeProto MakeStringType()
         {
-            return new LotusvNext.Types.TypeProto
+            return new LotusvNext.Types.TypeProto()
             {
-                ScalarType = ONNX.TensorProto.Types.DataType.String
+                ScalarType = new LotusvNext.Types.TypeProto.Types.Scalar()
+                {
+                    DataType = ONNX.TensorProto.Types.DataType.String
+                }
             };
         }
         public static ONNX.TensorShapeProto MakeTensorShape(IEnumerable<long> dims)
@@ -460,7 +469,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
         {
             return new LotusvNext.Types.TypeProto
             {
-                TensorType = new LotusvNext.Types.TypeProto.Types.TensorTypeProto()
+                TensorType = new LotusvNext.Types.TypeProto.Types.Tensor()
                 {
                     ElemType = type,
                     Shape = MakeTensorShape(dims)
@@ -496,7 +505,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
         {
             return new LotusvNext.Types.TypeProto()
             {
-                MapType = new LotusvNext.Types.TypeProto.Types.MapTypeProto()
+                MapType = new LotusvNext.Types.TypeProto.Types.Map()
                 {
                     KeyType = keyType,
                     ValueType = valType

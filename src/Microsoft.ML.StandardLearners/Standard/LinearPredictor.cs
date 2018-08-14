@@ -271,7 +271,7 @@ namespace Microsoft.ML.Runtime.Learners
 
             ctx.AddExpression(forExp);
 
-            return false;
+            return true;
         }
 
         // Generate the score from the given values, assuming they have already been normalized.

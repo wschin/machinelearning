@@ -856,11 +856,10 @@ namespace Microsoft.ML.Runtime.Data
                         var dstRef = ctx.GetRef(dstName);
 
                         // Define bias
-                        var biasTensorName = ctx.CreateVariableName("bias");
                         var bias = new float[featureCount];
                         for (int i = 0; i < featureCount; ++i)
                             bias[i] = Offset == null ? 0.0f : Offset[i];
-                        var biasName = ctx.Declare(bias);
+                        var biasName = ctx.Declare(bias, "bias");
                         ctx.AddExpression(ctx.GetDef(biasName));
 
                         // Define scale
@@ -868,7 +867,7 @@ namespace Microsoft.ML.Runtime.Data
                         for (int i = 0; i < featureCount; ++i)
                             scale[i] = Scale == null ? 1.0f : Scale[i];
 
-                        var scaleName = ctx.Declare(scale);
+                        var scaleName = ctx.Declare(scale, "scale");
                         ctx.AddExpression(ctx.GetDef(scaleName));
 
                         // Define for-loop, iterating from 0 to featureCount-1
