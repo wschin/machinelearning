@@ -70,7 +70,8 @@ namespace Microsoft.ML.Runtime.Data
         bool CanSaveOnnx { get; }
 
         bool OnnxInfo(OnnxContext ctx, OnnxNode nodeProtoWrapper, int featureCount);
-        bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount);
+
+        bool SaveAsPmfCore(PmfContext ctx, int featureCount, string srcName, string dstName);
     }
 
     public sealed partial class NormalizeTransform : OneToOneTransformBase
@@ -332,9 +333,9 @@ namespace Microsoft.ML.Runtime.Data
             return false;
         }
 
-        protected override bool SaveAsPmfCore(PmfContext ctx, int iinfo, ColInfo info, string srcVariableName, string dstVariableName)
+        protected override bool SaveAsPmfCore(PmfContext ctx, int iinfo, ColInfo info, string srcName, string dstName)
         {
-            _functions[iinfo].SaveAsPmfColumnCore(ctx, info.TypeSrc.ValueCount);
+            _functions[iinfo].SaveAsPmfCore(ctx, info.TypeSrc.ValueCount, srcName, dstName);
             return true;
         }
 

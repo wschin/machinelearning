@@ -331,12 +331,13 @@ namespace Microsoft.ML.Runtime.Data
 
         protected override bool SaveAsPmfCore(PmfContext ctx, int iinfo, ColInfo info, string srcVariableName, string dstVariableName)
         {
+            /*
             var vectorSize = info.TypeSrc.ValueCount;
             var gramLength = _exes[iinfo].NgramLength;
             var skipLength = _exes[iinfo].SkipLength;
             
             var outputName = ctx.CreateVariableName(info.Name);
-            var outputRef = PmfUtils.MakeValueProtoVariableReference(outputName);
+            var outputRef = PmfUtils.MakeVarRef(outputName);
 
             // Initialize term-to-index dictionary
             var map = _ngramMaps[iinfo];
@@ -440,10 +441,11 @@ namespace Microsoft.ML.Runtime.Data
 
             iFor.For.Body.Add(nFor);
             ctx.AddExpression(iFor);
-            
+            */
             return true;
         }
 
+        /*
         private static LotusvNext.Expressions.Expression MakeLayer(PmfContext ctx,
             ref Dictionary<int, LotusvNext.Expressions.Expression> S, int l,int nMax,
             LotusvNext.Expressions.Expression dRef)
@@ -488,6 +490,7 @@ namespace Microsoft.ML.Runtime.Data
 
             return sLoopExp;
         }
+        */
 
         private static string TestType(ColumnType type)
         {

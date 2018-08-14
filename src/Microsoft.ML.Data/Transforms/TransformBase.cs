@@ -605,10 +605,15 @@ namespace Microsoft.ML.Runtime.Data
             for (int iinfo = 0; iinfo < Infos.Length; ++iinfo)
             {
                 ColInfo info = Infos[iinfo];
-                string sourceColumnName = Source.Schema.GetColumnName(info.Source);
-                SaveAsPmfCore(ctx, iinfo, info,
-                    ctx.RetrieveVariableNameOrCreateOne(sourceColumnName),
-                    ctx.CreateVariableName(info.Name));
+                var srcColName = Source.Schema.GetColumnName(info.Source);
+                var srcType = Source.Schema.GetColumnType(info.Source);
+                var dstColName = info.Name;
+                Schema.TryGetColumnIndex(info.Name, out int dstColId);
+                var dstType = Schema.GetColumnType(dstColId);
+
+                ctx.GetRef(srcColName);
+                ctx.Declare(dstType, dstColName);
+                SaveAsPmfCore(ctx, iinfo, info, srcColName, dstColName);
             }
         }
 

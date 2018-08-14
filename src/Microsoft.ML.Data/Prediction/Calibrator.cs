@@ -318,7 +318,14 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
 
         public bool SaveAsPmf(PmfContext ctx, string[] outputNames, string featureColumnName)
         {
-            return false;
+            var mapper = (ISingleCanSavePmf)_mapper;
+            if (!mapper.SaveAsPmf(ctx, new[] { outputNames[1] }, featureColumnName))
+                return false;
+
+            var calibrator = Calibrator as ISingleCanSavePmf;
+            calibrator.SaveAsPmf(ctx, new[] { outputNames[1], outputNames[2] }, featureColumnName);
+
+            return true;
         }
 
     }

@@ -736,8 +736,8 @@ namespace Microsoft.ML.Runtime.Data
             TermMap<DvText> map = (TermMap<DvText>)_termMap[iinfo].Map;
             map.GetTerms(ref terms);
             var dictionaryKeys = new List<string>();
-            var dictionaryVals = new List<int>();
-            int i = 0;
+            var dictionaryVals = new List<long>();
+            long i = 0;
             foreach (var t in terms.DenseValues())
             {
                 dictionaryKeys.Add(t.ToString());
@@ -747,16 +747,16 @@ namespace Microsoft.ML.Runtime.Data
 
             // Make dictionary and its reference
             var dName = ctx.CreateVariableName("dictionary");
-            var dExp = PmfUtils.MakeExpressionStringToInt64Map(dictionaryKeys, dictionaryVals);
-            var dDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(dName, dExp));
+            var dExp = PmfUtils.MakeDictionary(dictionaryKeys, dictionaryVals);
+            var dDef = PmfUtils.MakeLet(dName, dExp);
             ctx.AddExpression(dDef);
-            var dRef = PmfUtils.MakeValueProtoVariableReference(dName);
+            var dRef = PmfUtils.MakeVarRef(dName);
 
             // Compute output from input 
             var xName = ctx.CreateVariableName(srcVariableName);
-            var xRef = PmfUtils.MakeValueProtoVariableReference(xName);
+            var xRef = PmfUtils.MakeVarRef(xName);
             var yName = ctx.CreateVariableName(dstVariableName);
-            var yDef = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(yName, PmfUtils.MakeElementAccess(dRef, xRef)));
+            var yDef = PmfUtils.MakeLet(yName, PmfUtils.MakeElementAccess(dRef, xRef));
             ctx.AddExpression(yDef);
 
             return true;

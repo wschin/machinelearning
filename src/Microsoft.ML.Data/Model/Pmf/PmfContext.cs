@@ -10,264 +10,650 @@ namespace Microsoft.ML.Runtime.Model.Pmf
 {
     public sealed class PmfUtils
     {
-        // Functions for making ValueProto are defined below
-        public static LotusvNext.Types.TypeProto.Types.TensorTypeProto MakeTensorTypeProto(
-            ONNX.TensorProto.Types.DataType elemType, List<long> dims)
-        {
-            // First we make a TensorTypeProto because its an one-of field in TypeProto
-            var tensorTypeProto = new LotusvNext.Types.TypeProto.Types.TensorTypeProto();
-            // Directly assign element type because it's a primitive protobuf type
-            tensorTypeProto.ElemType = elemType;
-            // The shape information is a customized data structure, we need to allocate one before modifying it
-            tensorTypeProto.Shape = new ONNX.TensorShapeProto();
-
-            // Scan through the input dimension list and copy the stored information into ONNX's shape object
-            for (int i = 0; i < dims.Count; ++i)
-            {
-                var d = new ONNX.TensorShapeProto.Types.Dimension();
-                if (dims[i] < 1)  // zero or negative dimension means variable-length
-                    d.DimParam = "None";
-                else
-                    d.DimValue = dims[i]; // positive integer provides dimension explicitly 
-                tensorTypeProto.Shape.Dim.Add(d);
-            }
-            return tensorTypeProto;
-        }
-        public static LotusvNext.Types.TypeProto.Types.TensorTypeProto MakeTensorTypeProto(
-            ONNX.TensorProto.Types.DataType elemType, long dim)
-        {
-            // First we make a TensorTypeProto because its an one-of field in TypeProto
-            var tensorTypeProto = new LotusvNext.Types.TypeProto.Types.TensorTypeProto();
-            // Directly assign element type because it's a primitive protobuf type
-            tensorTypeProto.ElemType = elemType;
-            // The shape information is a customized data structure, we need to allocate one before modifying it
-            tensorTypeProto.Shape = new ONNX.TensorShapeProto();
-
-            // Scan through the input dimension list and copy the stored information into ONNX's shape object
-            var d = new ONNX.TensorShapeProto.Types.Dimension();
-            if (dim < 1)  // zero or negative dimension means variable-length
-                d.DimParam = "None";
-            else
-                d.DimValue = dim; // positive integer provides dimension explicitly 
-            tensorTypeProto.Shape.Dim.Add(d);
-            return tensorTypeProto;
-        }
-        public static LotusvNext.Types.TypeProto MakeTypeProtoTensor(
-            ONNX.TensorProto.Types.DataType elemType, List<long> dims)
-        {
-            // TypeProto and then assign the TensorTypeProto to it.
-            var typeProto = new LotusvNext.Types.TypeProto();
-            typeProto.TensorType = MakeTensorTypeProto(elemType, dims);
-            return typeProto;
-        }
-        public static LotusvNext.Types.TypeProto MakeTypeProtoTensor(
-            ONNX.TensorProto.Types.DataType elemType, long dim)
-        {
-            // TypeProto and then assign the TensorTypeProto to it.
-            var typeProto = new LotusvNext.Types.TypeProto();
-            typeProto.TensorType = MakeTensorTypeProto(elemType, dim);
-            return typeProto;
-        }
-        public static LotusvNext.Types.ValueInfoProto MakeValueInfoProtoTensor(
-            string name, ONNX.TensorProto.Types.DataType elemType,
-            List<long> dims, string docString="")
-        {
-            var valueInfo = new LotusvNext.Types.ValueInfoProto
-            {
-                Name = name,
-                Type = MakeTypeProtoTensor(elemType, dims),
-                DocString = docString
-            };
-            return valueInfo;
-        }
-
-        public static LotusvNext.Types.TypeProto.Types.ParameterDeclProto MakeParameterDeclProtoTensor(
-            string name, LotusvNext.Types.TypeProto type,
-            string docString="", bool variadic=false)
-        {
-            var parameterDeclProto = new LotusvNext.Types.TypeProto.Types.ParameterDeclProto
-            {
-                Name = name,
-                Type = type,
-                DocString = docString,
-                Variadic = variadic
-            };
-            return parameterDeclProto;
-        }
-
-        public static LotusvNext.Types.TypeProto.Types.SignatureDeclProto MakeSignatureDeclProtoTensor(
-            List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> inputParams,
-            List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> outputParams,
-            //List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> attributeParams,
-            string docString)
-        {
-            var signatureDeclProto = new LotusvNext.Types.TypeProto.Types.SignatureDeclProto();
-            signatureDeclProto.InputParams.AddRange(inputParams);
-            signatureDeclProto.OutputParams.AddRange(outputParams);
-            //signatureDeclProto.InputAttributes.AddRange(attributeParams);
-            signatureDeclProto.DocString = docString;
-            return signatureDeclProto;
-        }
-        
-        public static LotusvNext.Expressions.Let.Types.Binding MakeBinding(
-            string name, LotusvNext.Expressions.Expression expression)
-        {
-            var binding = new LotusvNext.Expressions.Let.Types.Binding
-            {
-                Name = name,
-                InitialValue = expression
-            };
-            return binding;
-        }
-        public static LotusvNext.Types.TypeProto MakeTypeProtoScalar(
-            ONNX.TensorProto.Types.DataType type)
-        {
-            var typeProto = new LotusvNext.Types.TypeProto
-            {
-                ScalarType = type
-            };
-            return typeProto;
-        }
-
-        public static LotusvNext.Expressions.ValueProto MakeValueProtoInt64Scalar(long value)
+        // Helper functions for creating values 
+        public static LotusvNext.Expressions.Expression Make(long value)
         {
             var valueProto = new LotusvNext.Expressions.ValueProto
             {
                 Integer = value,
-                Type = MakeTypeProtoScalar(ONNX.TensorProto.Types.DataType.Int64)
+                Type = MakeInt64Type()
             };
-            return valueProto;
-        }
-        public static LotusvNext.Expressions.ValueProto MakeValueProtoStringScalar(string value)
-        {
-            var valueProto = new LotusvNext.Expressions.ValueProto
-            {
-                String = value,
-                Type = MakeTypeProtoScalar(ONNX.TensorProto.Types.DataType.String)
-            };
-            return valueProto;
-        }
 
-        public static LotusvNext.Expressions.ValueProto MakeValueProtoFloatScalar(float value)
-        {
-            var valueProto = new LotusvNext.Expressions.ValueProto
+            var expressionProto = new LotusvNext.Expressions.Expression()
             {
-                Float = value,
-                Type = MakeTypeProtoScalar(ONNX.TensorProto.Types.DataType.Float)
+                Literal = valueProto
             };
-            return valueProto;
+
+            return expressionProto;
         }
-        public static ONNX.TensorProto MakeTensorProtoFloat(
-            string name, IEnumerable<long> dims, IEnumerable<float> values, string docString)
+        public static LotusvNext.Expressions.Expression Make(IEnumerable<long> values)
         {
             var tensorProto = new ONNX.TensorProto();
-            tensorProto.Name = name;
-            tensorProto.Dims.AddRange(dims);
-            tensorProto.DocString = docString;
-            tensorProto.FloatData.AddRange(values);
-            return tensorProto;
+            tensorProto.DataType = ONNX.TensorProto.Types.DataType.Int64;
+            tensorProto.Dims.Add(values.LongCount());
+            tensorProto.Int64Data.AddRange(values);
+
+            var valueProto = new LotusvNext.Expressions.ValueProto()
+            {
+                DenseTensor = tensorProto
+            };
+
+            var expressionProto = new LotusvNext.Expressions.Expression()
+            {
+                Literal = valueProto
+            };
+
+            return expressionProto;
         }
-        private static IEnumerable<Google.Protobuf.ByteString> StringToByteString(IEnumerable<string> str)
-            => str.Select(s => Google.Protobuf.ByteString.CopyFrom(System.Text.Encoding.UTF8.GetBytes(s)));
-        public static ONNX.TensorProto MakeTensorProtoString(
-            string name, List<long> dims, IEnumerable<string> values, string docString)
+        public static LotusvNext.Expressions.Expression Make(IEnumerable<long> values, IEnumerable<long> dims)
         {
             var tensorProto = new ONNX.TensorProto();
-            tensorProto.Name = name;
-            tensorProto.DataType = ONNX.TensorProto.Types.DataType.String;
-            tensorProto.Dims.AddRange(dims);
-            tensorProto.DocString = docString;
-            tensorProto.StringData.AddRange(StringToByteString(values));
-            return tensorProto;
-        }
-        public static ONNX.TensorProto MakeTensorProtoInt64(
-            string name, List<long> dims, IEnumerable<long> values, string docString)
-        {
-            var tensorProto = new ONNX.TensorProto();
-            tensorProto.Name = name;
             tensorProto.DataType = ONNX.TensorProto.Types.DataType.Int64;
             tensorProto.Dims.AddRange(dims);
-            tensorProto.DocString = docString;
             tensorProto.Int64Data.AddRange(values);
-            return tensorProto;
-        }
-        public static ONNX.TensorProto MakeTensorProtoInt32(
-            string name, IEnumerable<long> dims, IEnumerable<int> values, string docString)
-        {
-            var tensorProto = new ONNX.TensorProto();
-            tensorProto.Name = name;
-            tensorProto.Dims.AddRange(dims);
-            tensorProto.DocString = docString;
-            tensorProto.Int32Data.AddRange(values);
-            return tensorProto;
-        }
-        public static ONNX.TensorProto MakeTensorProtoInt32(
-            string name, int dim, IEnumerable<int> values, string docString)
-        {
-            var tensorProto = new ONNX.TensorProto();
-            tensorProto.Name = name;
-            tensorProto.DataType = ONNX.TensorProto.Types.DataType.Int32;
-            tensorProto.Dims.Add(dim);
-            tensorProto.DocString = docString;
-            tensorProto.Int32Data.AddRange(values);
-            return tensorProto;
-        }
-        public static LotusvNext.Expressions.ValueProto MakeValueProtoFloatTensor(
-            string name, List<long> dims, List<float> values, string docString="")
-        {
+
             var valueProto = new LotusvNext.Expressions.ValueProto()
             {
-                DenseTensor = MakeTensorProtoFloat(name, dims, values, docString)
+                DenseTensor = tensorProto
             };
-            return valueProto;
+
+            var expressionProto = new LotusvNext.Expressions.Expression()
+            {
+                Literal = valueProto
+            };
+
+            return expressionProto;
         }
-        public static LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto MakeKeyValuePairProtoInt64ScalarToFloatScalar(
-            long key, float value)
+        public static LotusvNext.Expressions.Expression Make(float value)
         {
-            var keyValuePairProto = new LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto()
+            var valueProto = new LotusvNext.Expressions.ValueProto
+            {
+                Float = value, // this field's type is double, we should add float field into ValueProto.
+                Type = MakeFloatType()
+            };
+
+            var expressionProto = new LotusvNext.Expressions.Expression()
+            {
+                Literal = valueProto
+            };
+
+            return expressionProto;
+        }
+        public static LotusvNext.Expressions.Expression Make(IEnumerable<float> values)
+        {
+            var tensorProto = new ONNX.TensorProto();
+            tensorProto.DataType = ONNX.TensorProto.Types.DataType.Float;
+            tensorProto.Dims.Add(values.LongCount());
+            tensorProto.FloatData.AddRange(values);
+
+            var valueProto = new LotusvNext.Expressions.ValueProto()
+            {
+                DenseTensor = tensorProto
+            };
+
+            var expressionProto = new LotusvNext.Expressions.Expression()
+            {
+                Literal = valueProto
+            };
+
+            return expressionProto;
+        }
+        public static LotusvNext.Expressions.Expression Make(IEnumerable<float> values, IEnumerable<long> dims)
+        {
+            var tensorProto = new ONNX.TensorProto();
+            tensorProto.DataType = ONNX.TensorProto.Types.DataType.Float;
+            tensorProto.Dims.AddRange(dims);
+            tensorProto.FloatData.AddRange(values);
+
+            var valueProto = new LotusvNext.Expressions.ValueProto()
+            {
+                DenseTensor = tensorProto
+            };
+
+            var expressionProto = new LotusvNext.Expressions.Expression()
+            {
+                Literal = valueProto
+            };
+
+            return expressionProto;
+        }
+        public static LotusvNext.Expressions.Expression Make(string value)
+        {
+            var valueProto = new LotusvNext.Expressions.ValueProto
+            {
+                String = value, // this field's type is double, we should add float field into ValueProto.
+                Type = MakeStringType()
+            };
+
+            var expressionProto = new LotusvNext.Expressions.Expression()
+            {
+                Literal = valueProto
+            };
+
+            return expressionProto;
+        }
+        public static LotusvNext.Expressions.Expression Make(IEnumerable<string> values)
+        {
+            var tensorProto = new ONNX.TensorProto();
+            tensorProto.DataType = ONNX.TensorProto.Types.DataType.String;
+            tensorProto.Dims.Add(values.LongCount());
+            tensorProto.StringData.AddRange(values.Select(s => Google.Protobuf.ByteString.CopyFrom(System.Text.Encoding.UTF8.GetBytes(s))));
+
+            var valueProto = new LotusvNext.Expressions.ValueProto()
+            {
+                DenseTensor = tensorProto
+            };
+
+            var expressionProto = new LotusvNext.Expressions.Expression()
+            {
+                Literal = valueProto
+            };
+
+            return expressionProto;
+        }
+        public static LotusvNext.Expressions.Expression Make(IEnumerable<string> values, IEnumerable<long> dims)
+        {
+            var tensorProto = new ONNX.TensorProto();
+            tensorProto.DataType = ONNX.TensorProto.Types.DataType.String;
+            tensorProto.Dims.AddRange(dims);
+            tensorProto.StringData.AddRange(values.Select(s => Google.Protobuf.ByteString.CopyFrom(System.Text.Encoding.UTF8.GetBytes(s))));
+
+            var valueProto = new LotusvNext.Expressions.ValueProto()
+            {
+                DenseTensor = tensorProto
+            };
+
+            var expressionProto = new LotusvNext.Expressions.Expression()
+            {
+                Literal = valueProto
+            };
+
+            return expressionProto;
+        }
+        public static LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto MakePair(string key, long value)
+        {
+            return new LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto()
+            {
+                S = key,
+                Value = Make(value).Literal
+            };
+        }
+        public static LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto MakePair(long key, string value)
+        {
+            return new LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto()
             {
                 I64 = key,
-                Value = MakeValueProtoFloatScalar(value)
+                Value = Make(value).Literal
             };
-            return keyValuePairProto;
         }
-        public static LotusvNext.Expressions.ValueProto.Types.MapProto MakeMapProtoInt64ScalarToFloatScalar(
-            Dictionary<long, float> dictionary)
+        public static LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto MakePair(string key, string value)
+        {
+            return new LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto()
+            {
+                S= key,
+                Value = Make(value).Literal
+            };
+        }
+        public static LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto MakePair(long key, long value)
+        {
+            return new LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto()
+            {
+                I64= key,
+                Value = Make(value).Literal
+            };
+        }
+        public static LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto MakePair(long key, float value)
+        {
+            return new LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto()
+            {
+                I64= key,
+                Value = Make(value).Literal
+            };
+        }
+        public static LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto MakePair(string key, float value)
+        {
+            return new LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto()
+            {
+                S = key,
+                Value = Make(value).Literal
+            };
+        }
+        public static LotusvNext.Expressions.Expression MakeDictionary(IEnumerable<string> keys=null, IEnumerable<long> values=null)
         {
             var mapProto = new LotusvNext.Expressions.ValueProto.Types.MapProto();
-            mapProto.KeyValuePairs.AddRange(dictionary.Select(x => MakeKeyValuePairProtoInt64ScalarToFloatScalar(x.Key, x.Value)));
-            return mapProto;
-        }
-        public static LotusvNext.Expressions.ValueProto MakeValueProtoMapInt64ScalarToFloatScalar(
-            Dictionary<long, float> dictionary)
-        {
-            var valueProto = new LotusvNext.Expressions.ValueProto()
+            if (keys != null && values != null)
             {
-                Map = MakeMapProtoInt64ScalarToFloatScalar(dictionary)
-            };
-            return valueProto;
+                using (var ik = keys.GetEnumerator())
+                using (var iv = values.GetEnumerator())
+                    while (ik.MoveNext() && iv.MoveNext())
+                    {
+                        if (values != null)
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, iv.Current));
+                        else
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, default(long)));
+                    }
+            }
+
+            var valueProto = new LotusvNext.Expressions.ValueProto();
+            valueProto.Map = mapProto;
+
+            var expProto = new LotusvNext.Expressions.Expression();
+            expProto.Literal = valueProto;
+            return expProto;
         }
- 
-        // Functions for making expressions are defined below
-        public static LotusvNext.Expressions.VariableReference MakeVariableReferenceProto(string name)
+        public static LotusvNext.Expressions.Expression MakeDictionary(IEnumerable<long> keys=null, IEnumerable<string> values=null)
         {
-            var variableReferenceProto = new LotusvNext.Expressions.VariableReference()
+            var mapProto = new LotusvNext.Expressions.ValueProto.Types.MapProto();
+            if (keys != null && values != null)
             {
-                Name = name
-            };
-            return variableReferenceProto;
+                using (var ik = keys.GetEnumerator())
+                using (var iv = values.GetEnumerator())
+                    while (ik.MoveNext() && iv.MoveNext())
+                    {
+                        if (values != null)
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, iv.Current));
+                        else
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, default(string)));
+                    }
+            }
+
+            var valueProto = new LotusvNext.Expressions.ValueProto();
+            valueProto.Map = mapProto;
+
+            var expProto = new LotusvNext.Expressions.Expression();
+            expProto.Literal = valueProto;
+            return expProto;
         }
-        public static LotusvNext.Expressions.Expression MakeValueProtoVariableReference(string name)
+        public static LotusvNext.Expressions.Expression MakeDictionary(IEnumerable<string> keys=null, IEnumerable<string> values=null)
         {
-            var valueProto = new LotusvNext.Expressions.Expression()
+            var mapProto = new LotusvNext.Expressions.ValueProto.Types.MapProto();
+            if (keys != null && values != null)
             {
-                Variable = MakeVariableReferenceProto(name)
+                using (var ik = keys.GetEnumerator())
+                using (var iv = values.GetEnumerator())
+                    while (ik.MoveNext() && iv.MoveNext())
+                    {
+                        if (values != null)
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, iv.Current));
+                        else
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, default(string)));
+                    }
+            }
+
+            var valueProto = new LotusvNext.Expressions.ValueProto();
+            valueProto.Map = mapProto;
+
+            var expProto = new LotusvNext.Expressions.Expression();
+            expProto.Literal = valueProto;
+            return expProto;
+        }
+        public static LotusvNext.Expressions.Expression MakeDictionary(IEnumerable<long> keys=null, IEnumerable<long> values=null)
+        {
+            var mapProto = new LotusvNext.Expressions.ValueProto.Types.MapProto();
+            if (keys != null && values != null)
+            {
+                using (var ik = keys.GetEnumerator())
+                using (var iv = values.GetEnumerator())
+                    while (ik.MoveNext() && iv.MoveNext())
+                    {
+                        if (values != null)
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, iv.Current));
+                        else
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, default(long)));
+                    }
+            }
+
+            var valueProto = new LotusvNext.Expressions.ValueProto();
+            valueProto.Map = mapProto;
+
+            var expProto = new LotusvNext.Expressions.Expression();
+            expProto.Literal = valueProto;
+            return expProto;
+        }
+        public static LotusvNext.Expressions.Expression MakeDictionary(IEnumerable<long> keys=null, IEnumerable<float> values=null)
+        {
+            var mapProto = new LotusvNext.Expressions.ValueProto.Types.MapProto();
+            if (keys != null && values != null)
+            {
+                using (var ik = keys.GetEnumerator())
+                using (var iv = values.GetEnumerator())
+                    while (ik.MoveNext() && iv.MoveNext())
+                    {
+                        if (values != null)
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, iv.Current));
+                        else
+                            mapProto.KeyValuePairs.Add(MakePair(ik.Current, default(float)));
+                    }
+            }
+
+            var valueProto = new LotusvNext.Expressions.ValueProto();
+            valueProto.Map = mapProto;
+
+            var expProto = new LotusvNext.Expressions.Expression();
+            expProto.Literal = valueProto;
+            return expProto;
+        }
+        public static LotusvNext.Expressions.Expression MakeFunRef(string name)
+        {
+            return new LotusvNext.Expressions.Expression()
+            {
+                Funcref = new LotusvNext.Expressions.FunctionReference()
+                {
+                    Name = name
+                }
             };
-            return valueProto;
+        }
+        public static LotusvNext.Expressions.Expression MakeVarRef(string name)
+        {
+            return new LotusvNext.Expressions.Expression()
+            {
+                Variable = new LotusvNext.Expressions.VariableReference()
+                {
+                    Name = name
+                }
+            };
+        }
+        public static LotusvNext.Expressions.Let.Types.Binding MakeBinding(string name, long initialValue)
+        {
+            return new LotusvNext.Expressions.Let.Types.Binding()
+            {
+                Name = name,
+                InitialValue = Make(initialValue)
+            };
+        }
+        public static LotusvNext.Expressions.Let.Types.Binding MakeBinding(string name, float initialValue)
+        {
+            return new LotusvNext.Expressions.Let.Types.Binding()
+            {
+                Name = name,
+                InitialValue = Make(initialValue)
+            };
+        }
+        public static LotusvNext.Expressions.Let.Types.Binding MakeBinding(string name, string initialValue)
+        {
+            return new LotusvNext.Expressions.Let.Types.Binding()
+            {
+                Name = name,
+                InitialValue = Make(initialValue)
+            };
+        }
+        public static LotusvNext.Expressions.Let.Types.Binding MakeBinding(string name, LotusvNext.Expressions.Expression initialValue)
+        {
+            return new LotusvNext.Expressions.Let.Types.Binding()
+            {
+                Name = name,
+                InitialValue = initialValue
+            };
+        }
+        public static LotusvNext.Expressions.Expression MakeLet(string name, LotusvNext.Expressions.Expression initialValue)
+        {
+            // Make Binding
+            var bindingProto = MakeBinding(name, initialValue);
+
+            // Make Let
+            var letProto = new LotusvNext.Expressions.Let();
+            letProto.VariableBindings.Add(bindingProto);
+
+            // Make Expression
+            return new LotusvNext.Expressions.Expression()
+            {
+                Let = letProto
+            };
+        }
+        public static LotusvNext.Expressions.Expression MakeSet(string name, LotusvNext.Expressions.Expression value)
+        {
+            return new LotusvNext.Expressions.Expression()
+            {
+                Set = new LotusvNext.Expressions.Set()
+                {
+                    Name = name,
+                    Value = value
+                }
+            };
+        }
+        // Helper functions for creating types
+        public static LotusvNext.Types.TypeProto MakeInt64Type()
+        {
+            return new LotusvNext.Types.TypeProto
+            {
+                ScalarType = ONNX.TensorProto.Types.DataType.Int64
+            };
+        }
+        public static LotusvNext.Types.TypeProto MakeFloatType()
+        {
+            return new LotusvNext.Types.TypeProto
+            {
+                ScalarType = ONNX.TensorProto.Types.DataType.Float
+            };
+        }
+        public static LotusvNext.Types.TypeProto MakeStringType()
+        {
+            return new LotusvNext.Types.TypeProto
+            {
+                ScalarType = ONNX.TensorProto.Types.DataType.String
+            };
+        }
+        public static ONNX.TensorShapeProto MakeTensorShape(IEnumerable<long> dims)
+        {
+            var shapeProto = new ONNX.TensorShapeProto();
+
+            if (dims == null)
+                return shapeProto;
+
+            // Scan through the input dimension list and copy the stored information into ONNX's shape object
+            foreach (var d in dims)
+            {
+                var dimProto = new ONNX.TensorShapeProto.Types.Dimension();
+                // For a dimension value, zero or negative dimension means variable-length dimension (aka unknown size)
+                // while positive integer provides size explicitly.
+                if (d < 1)
+                    dimProto.DimParam = "None";
+                else
+                    dimProto.DimValue = d;
+                shapeProto.Dim.Add(dimProto);
+            }
+
+            return shapeProto;
+        }
+        public static LotusvNext.Types.TypeProto MakeTensorType(
+            ONNX.TensorProto.Types.DataType type, IEnumerable<long> dims)
+        {
+            return new LotusvNext.Types.TypeProto
+            {
+                TensorType = new LotusvNext.Types.TypeProto.Types.TensorTypeProto()
+                {
+                    ElemType = type,
+                    Shape = MakeTensorShape(dims)
+                }
+            };
+        }
+        public static LotusvNext.Types.TypeProto MakeInt64TensorType(long dim)
+        {
+            return MakeTensorType(ONNX.TensorProto.Types.DataType.Int64, new List<long>() { dim });
+        }
+        public static LotusvNext.Types.TypeProto MakeFloatTensorType(long dim)
+        {
+            return MakeTensorType(ONNX.TensorProto.Types.DataType.Float, new List<long>() { dim });
+        }
+        public static LotusvNext.Types.TypeProto MakeStringTensorType(long dim)
+        {
+            return MakeTensorType(ONNX.TensorProto.Types.DataType.String, new List<long>() { dim });
+        }
+        public static LotusvNext.Types.TypeProto MakeInt64TensorType(IEnumerable<long> dims)
+        {
+            return MakeTensorType(ONNX.TensorProto.Types.DataType.Int64, dims);
+        }
+        public static LotusvNext.Types.TypeProto MakeFloatTensorType(IEnumerable<long> dims)
+        {
+            return MakeTensorType(ONNX.TensorProto.Types.DataType.Float, dims);
+        }
+        public static LotusvNext.Types.TypeProto MakeStringTensorType(IEnumerable<long> dims)
+        {
+            return MakeTensorType(ONNX.TensorProto.Types.DataType.String, dims);
+        }
+        public static LotusvNext.Types.TypeProto MakeMapType(
+            ONNX.TensorProto.Types.DataType keyType, LotusvNext.Types.TypeProto valType)
+        {
+            return new LotusvNext.Types.TypeProto()
+            {
+                MapType = new LotusvNext.Types.TypeProto.Types.MapTypeProto()
+                {
+                    KeyType = keyType,
+                    ValueType = valType
+                }
+            };
+        }
+        public static LotusvNext.Types.TypeProto MakeStringToInt64MapType()
+        {
+            var keyType = ONNX.TensorProto.Types.DataType.String;
+            var valType = MakeInt64Type();
+            return MakeMapType(keyType, valType);
+        }
+        public static LotusvNext.Types.TypeProto MakeInt64ToStringMapType()
+        {
+            var keyType = ONNX.TensorProto.Types.DataType.Int64;
+            var valType = MakeStringType();
+            return MakeMapType(keyType, valType);
+        }
+        public static LotusvNext.Types.TypeProto MakeInt64ToInt64gMapType()
+        {
+            var keyType = ONNX.TensorProto.Types.DataType.Int64;
+            var valType = MakeInt64Type();
+            return MakeMapType(keyType, valType);
+        }
+        public static LotusvNext.Types.TypeProto MakeStringToStringMapType()
+        {
+            var keyType = ONNX.TensorProto.Types.DataType.String;
+            var valType = MakeStringType();
+            return MakeMapType(keyType, valType);
+        }
+        public static LotusvNext.Types.TypeProto MakeStringToFloatMapType()
+        {
+            var keyType = ONNX.TensorProto.Types.DataType.String;
+            var valType = MakeFloatType();
+            return MakeMapType(keyType, valType);
+        }
+        public static LotusvNext.Types.TypeProto MakeInt64ToFloatMapType()
+        {
+            var keyType = ONNX.TensorProto.Types.DataType.Int64;
+            var valType = MakeFloatType();
+            return MakeMapType(keyType, valType);
+        }
+        public static LotusvNext.Types.TypeProto.Types.ParameterDeclProto MakeParam(
+            string name, LotusvNext.Types.TypeProto type)
+        {
+            return new LotusvNext.Types.TypeProto.Types.ParameterDeclProto()
+            {
+                Name = name,
+                Type = type
+            };
+        }
+        public static LotusvNext.Types.TypeProto.Types.ParameterDeclProto MakeInt64Param(string name)
+        {
+            return MakeParam(name, MakeInt64Type());
+        }
+        public static LotusvNext.Types.TypeProto.Types.ParameterDeclProto MakeFloatParam(string name)
+        {
+            return MakeParam(name, MakeFloatType());
+        }
+        public static LotusvNext.Types.TypeProto.Types.ParameterDeclProto MakeStringParam(string name)
+        {
+            return MakeParam(name, MakeStringType());
+        }
+        public static LotusvNext.Types.TypeProto.Types.ParameterDeclProto MakeInt64sParam(string name, long dim)
+        {
+            return MakeParam(name, MakeInt64TensorType(new List<long>() { dim }));
+        }
+        public static LotusvNext.Types.TypeProto.Types.ParameterDeclProto MakeFloatsParam(string name, long dim)
+        {
+            return MakeParam(name, MakeFloatTensorType(new List<long>() { dim }));
+        }
+        public static LotusvNext.Types.TypeProto.Types.ParameterDeclProto MakeStringsParam(string name, long dim)
+        {
+            return MakeParam(name, MakeStringTensorType(new List<long>() { dim }));
+        }
+        public static LotusvNext.Types.TypeProto MakeType(ColumnType type)
+        {
+            var typeProto = new LotusvNext.Types.TypeProto();
+
+            DataKind rawKind;
+            if (type.IsVector)
+                rawKind = type.AsVector.ItemType.RawKind;
+            else if (type.IsKey)
+                rawKind = type.AsKey.RawKind;
+            else
+                rawKind = type.RawKind;
+
+            if (type.IsVector)
+            {
+                var dims = new List<long>();
+                if (type.IsVector)
+                {
+                    if (type.ValueCount == 0) // Unknown size.
+                        dims.Add(-1);
+                    else if (type.ValueCount == 1)
+                        dims.Add(1);
+                    else if (type.ValueCount > 1)
+                    {
+                        var vec = type.AsVector;
+                        for (int i = 0; i < vec.DimCount; i++)
+                            dims.Add(vec.GetDim(i));
+                    }
+                }
+                switch (rawKind)
+                {
+                    case DataKind.BL:
+                        typeProto = MakeInt64TensorType(dims);
+                        break;
+                    case DataKind.TX:
+                        typeProto = MakeStringTensorType(dims);
+                        break;
+                    case DataKind.U4:
+                        typeProto = MakeInt64TensorType(dims);
+                        break;
+                    case DataKind.R4:
+                        typeProto = MakeFloatTensorType(dims);
+                        break;
+                    default:
+                        Contracts.Assert(false, "Unknown type.");
+                        break;
+                }
+            }
+            else
+            {
+                switch (rawKind)
+                {
+                    case DataKind.BL:
+                        typeProto = MakeInt64Type();
+                        break;
+                    case DataKind.TX:
+                        typeProto = MakeStringType();
+                        break;
+                    case DataKind.U4:
+                        typeProto = MakeInt64Type();
+                        break;
+                    case DataKind.R4:
+                        typeProto = MakeFloatType();
+                        break;
+                    default:
+                        Contracts.Assert(false, "Unknown type.");
+                        break;
+                }
+            }
+            return typeProto;
+        }
+        public static LotusvNext.Types.TypeProto.Types.SignatureDeclProto MakeSignature(
+            IEnumerable<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> inputs,
+            IEnumerable<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> outputs)
+        {
+            var signatureProto = new LotusvNext.Types.TypeProto.Types.SignatureDeclProto();
+            signatureProto.InputParams.AddRange(inputs);
+            signatureProto.OutputParams.AddRange(outputs);
+            return signatureProto;
         }
         public static LotusvNext.Expressions.Expression MakeElementAccess(
             LotusvNext.Expressions.Expression container,
-            List<LotusvNext.Expressions.Expression> path,
+            IEnumerable<LotusvNext.Expressions.Expression> path,
             LotusvNext.Expressions.Expression defaultValue=null)
         {
             var elementAccess = new LotusvNext.Expressions.ElementAccess();
@@ -275,6 +661,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             elementAccess.Path.AddRange(path);
             if (defaultValue != null)
                 elementAccess.Default = defaultValue;
+
             var expression = new LotusvNext.Expressions.Expression()
             {
                 Index = elementAccess
@@ -297,319 +684,37 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             };
             return expression;
         }
-
-        public static LotusvNext.Expressions.Let.Types.Binding MakeBindingProto(string name, LotusvNext.Expressions.Expression initialValue)
+        // Function-related helpers
+        public static LotusvNext.FunctionDefProto MakeFunction(
+            string name,
+            LotusvNext.Types.TypeProto.Types.ParameterDeclProto input,
+            LotusvNext.Types.TypeProto.Types.ParameterDeclProto output,
+            IEnumerable<LotusvNext.Expressions.Expression> body=null)
         {
-            var bindingProto = new LotusvNext.Expressions.Let.Types.Binding()
-            {
-                Name = name,
-                InitialValue = initialValue
-            };
-            return bindingProto;
-        }
-        public static LotusvNext.Expressions.Let MakeLetProto(List<LotusvNext.Expressions.Let.Types.Binding> bindings)
-        {
-            var letProto = new LotusvNext.Expressions.Let();
-            letProto.VariableBindings.AddRange(bindings);
-            return letProto;
-        }
-        public static LotusvNext.Expressions.Let MakeLetProto(LotusvNext.Expressions.Let.Types.Binding binding)
-        {
-            var letProto = new LotusvNext.Expressions.Let();
-            letProto.VariableBindings.Add(binding);
-            return letProto;
-        }
-        public static LotusvNext.Expressions.Expression MakeLetExpression(List<LotusvNext.Expressions.Let.Types.Binding> bindings)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                Let = MakeLetProto(bindings)
-            };
-        }
-        public static LotusvNext.Expressions.Expression MakeLetExpression(LotusvNext.Expressions.Let.Types.Binding bindings)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                Let = MakeLetProto(bindings)
-            };
-        }
-        public static LotusvNext.Expressions.Set MakeSetProto(string name, LotusvNext.Expressions.Expression value)
-        {
-            var setProto = new LotusvNext.Expressions.Set()
-            {
-                Name = name,
-                Value = value
-            };
-            return setProto;
-        }
-        public static LotusvNext.Expressions.Expression MakeSet(string name, LotusvNext.Expressions.Expression exp)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                Set=MakeSetProto(name, exp)
-            };
-        }
-        public static LotusvNext.Expressions.For MakeForProto(
-            List<LotusvNext.Expressions.Let.Types.Binding> inductionVariables,
-            LotusvNext.Expressions.Expression condition,
-            List<LotusvNext.Expressions.Expression> body,
-            List<LotusvNext.Expressions.Set> step)
-        {
-            var forProto = new LotusvNext.Expressions.For();
-            forProto.InductionVariables.AddRange(inductionVariables);
-            forProto.Condition = condition;
+            var functionDefProto = new LotusvNext.FunctionDefProto();
+            functionDefProto.InputParams.Add(input);
+            functionDefProto.OutputParams.Add(output);
             if (body != null)
-                forProto.Body.AddRange(body);
-            forProto.Step.AddRange(step);
-            return forProto;
+                functionDefProto.Body.AddRange(body);
+            return functionDefProto;
         }
-        public static LotusvNext.Expressions.Expression MakeFor(
-            LotusvNext.Expressions.Let.Types.Binding induction,
-            LotusvNext.Expressions.Expression condition,
-            List<LotusvNext.Expressions.Expression> body,
-            LotusvNext.Expressions.Set step)
+        public static LotusvNext.Expressions.Expression MakeLambda(
+            LotusvNext.Types.TypeProto.Types.ParameterDeclProto input,
+            LotusvNext.Types.TypeProto.Types.ParameterDeclProto output,
+            IEnumerable<LotusvNext.Expressions.Expression> body=null)
         {
+            var lambdaProto = new LotusvNext.Expressions.Lambda();
+            lambdaProto.InputParams.Add(input);
+            lambdaProto.OutputParams.Add(output);
+            if (body != null)
+                lambdaProto.Body.AddRange(body);
             return new LotusvNext.Expressions.Expression()
             {
-                For = MakeForProto(new List<LotusvNext.Expressions.Let.Types.Binding>() { induction },
-                condition, body, new List<LotusvNext.Expressions.Set>() { step })
+                Lambda = lambdaProto
             };
         }
-        public static LotusvNext.Expressions.Expression MakeSimpleFor(
-            string i_name, long i_start, long i_end, long i_step)
-        {
-            var binding = MakeBindingProto(i_name, MakeInt64LiteralExpression(i_start));
-            var iRefExp = MakeValueProtoVariableReference(i_name);
-            var iEndExp = MakeInt64LiteralExpression(i_end);
-            var cond = MakeSimpleCall("<", iRefExp, iEndExp);
-            var iStep = MakeSetProto(i_name, MakeInt64LiteralExpression(i_step));
-
-            return MakeFor(binding, cond, null, iStep);
-        }
-        public static LotusvNext.Expressions.Expression MakeSimpleFor(
-            string iName, string startName, string endName)
-        {
-            var iRef= MakeValueProtoVariableReference(iName);
-            var startRef = MakeValueProtoVariableReference(startName);
-            var endRef = MakeValueProtoVariableReference(endName);
-            var cond = MakeSimpleCall("<", iRef, endRef);
-            var iStep = MakeSetProto(iName, MakeInt64LiteralExpression(1));
-
-            var binding = MakeBindingProto(iName, MakeValueProtoVariableReference(startName));
-            return MakeFor(binding, cond, null, iStep);
-        }
-        public static LotusvNext.Expressions.Cond.Types.IfThen MakeIfThen(
-            LotusvNext.Expressions.Expression cond, IEnumerable<LotusvNext.Expressions.Expression> todo=null)
-        {
-            var ifThenProto = new LotusvNext.Expressions.Cond.Types.IfThen();
-            ifThenProto.Condition = cond;
-            if (todo != null)
-                ifThenProto.ThenClause.AddRange(todo);
-            return ifThenProto;
-        }
-        public static LotusvNext.Expressions.If MakeIfProto(
-            LotusvNext.Expressions.Cond.Types.IfThen ifThenBranch,
-            IEnumerable<LotusvNext.Expressions.Expression> elseBranch=null)
-        {
-            var ifProto = new LotusvNext.Expressions.If();
-            ifProto.IfThen = ifThenBranch;
-            if (elseBranch != null)
-                ifProto.ElseClause.AddRange(elseBranch);
-            return ifProto;
-        }
-        public static LotusvNext.Expressions.Expression MakeIf(
-            LotusvNext.Expressions.Expression cond)
-        {
-            var ifThenProto = new LotusvNext.Expressions.Cond.Types.IfThen();
-            ifThenProto.Condition = cond;
-
-            var ifProto = new LotusvNext.Expressions.If();
-            ifProto.IfThen = ifThenProto;
-
-            return new LotusvNext.Expressions.Expression()
-            {
-                IfThen = ifProto
-            };
-        }
-        public static LotusvNext.Expressions.Expression DefineLiteralInt32(string name, long value)
-        {
-            var valueProto = new LotusvNext.Expressions.ValueProto()
-            {
-                Integer = value,
-                Type = MakeTypeProtoScalar(ONNX.TensorProto.Types.DataType.Int64)
-            };
-            var valueExp = new LotusvNext.Expressions.Expression()
-            {
-                Literal = valueProto
-            };
-            return MakeLetExpression(MakeBinding(name, valueExp));
-        }
-        public static LotusvNext.Expressions.FunctionReference MakeFunctionReferenceProto(string name)
-        {
-            var functionReferenceProto = new LotusvNext.Expressions.FunctionReference()
-            { Name = name };
-            return functionReferenceProto;
-        }
-        public static LotusvNext.Expressions.Expression MakeFunctionReferenceExpression(string name)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                Funcref = MakeFunctionReferenceProto(name)
-            };
-        }
-        public static LotusvNext.Expressions.Call MakeCallProto(
-            LotusvNext.Expressions.Expression target,
-            IEnumerable<LotusvNext.Expressions.Expression> positional)
-        {
-            var callProto = new LotusvNext.Expressions.Call();
-            callProto.Target = target; // this is usually a function reference
-            callProto.Positional.AddRange(positional);
-            return callProto;
-        }
-        public static LotusvNext.Expressions.Expression MakeCall(
-            LotusvNext.Expressions.Expression target,
-            List<LotusvNext.Expressions.Expression> positional)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                Call = MakeCallProto(target, positional)
-            };
-        }
-        public static LotusvNext.Expressions.Expression MakeSimpleCall(
-            string functionName,
-            params string[] operandNames)
-        {
-            var functionRef = new LotusvNext.Expressions.FunctionReference
-            {
-                Name = functionName
-            };
-            var functionRefExp = new LotusvNext.Expressions.Expression()
-            {
-                Funcref = functionRef
-            };
-
-            var operandRefExps = new List<LotusvNext.Expressions.Expression>();
-            foreach (var name in operandNames)
-            {
-                var refProto = new LotusvNext.Expressions.VariableReference();
-                refProto.Name = name;
-                var refExp = new LotusvNext.Expressions.Expression();
-                operandRefExps.Add(refExp);
-            }
-
-            return new LotusvNext.Expressions.Expression()
-            {
-                Call = MakeCallProto(functionRefExp, operandRefExps)
-            };
-        }
-        public static LotusvNext.Expressions.Expression MakeSimpleCall(
-            string functionName,
-            params LotusvNext.Expressions.Expression[] operandExps)
-        {
-            var functionRef = new LotusvNext.Expressions.FunctionReference
-            {
-                Name = functionName
-            };
-            var functionRefExp = new LotusvNext.Expressions.Expression()
-            {
-                Funcref = functionRef
-            };
-            return new LotusvNext.Expressions.Expression()
-            {
-                Call = MakeCallProto(functionRefExp, operandExps)
-            };
-        }
-        public static LotusvNext.Expressions.Expression MakeCall(
-            LotusvNext.Expressions.Expression target,
-            LotusvNext.Expressions.Expression left,
-            LotusvNext.Expressions.Expression right)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                Call = MakeCallProto(target, new List<LotusvNext.Expressions.Expression>() { left, right })
-            };
-        }
-        
-        public static LotusvNext.Expressions.Expression MakeInt64LiteralExpression(long value)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                Literal = MakeValueProtoInt64Scalar(value)
-            };
-        }
-        public static LotusvNext.Expressions.Expression MakeInt64TensorValue(
-            string name, List<long> dims, IEnumerable<long> values)
-        {
-            var tensorProto = new ONNX.TensorProto();
-            for (int i = 0; i < dims.Count; ++i)
-                tensorProto.Dims.Add(dims[i]);
-            tensorProto.Int64Data.AddRange(values);
-
-            var valueProto = new LotusvNext.Expressions.ValueProto()
-            {
-                DenseTensor = tensorProto
-            };
-
-            var expressionProto = new LotusvNext.Expressions.Expression()
-            {
-                Literal = valueProto
-            };
-
-            return expressionProto;
-        }
-        public static LotusvNext.Expressions.Expression MakeInt64ArrayDefinition(string name, IEnumerable<long> values)
-        {
-            var tensorProto = new ONNX.TensorProto();
-            tensorProto.Dims.Add(values.Count());
-            tensorProto.Int64Data.AddRange(values);
-
-            var valueProto = new LotusvNext.Expressions.ValueProto()
-            {
-                DenseTensor = tensorProto
-            };
-
-            var expressionProto = new LotusvNext.Expressions.Expression()
-            {
-                Literal = valueProto
-            };
-
-            return MakeLetExpression(MakeBinding(name, expressionProto));
-        }
-        public static LotusvNext.Expressions.Expression MakeInt32ArrayValue(
-            string name, IEnumerable<int> values)
-        {
-            var tensorProto = new ONNX.TensorProto();
-            tensorProto.Dims.Add(values.Count());
-            tensorProto.Int32Data.AddRange(values);
-
-            var valueProto = new LotusvNext.Expressions.ValueProto()
-            {
-                DenseTensor = tensorProto
-            };
-
-            var expressionProto = new LotusvNext.Expressions.Expression()
-            {
-                Literal = valueProto
-            };
-
-            return expressionProto;
-        }
-        public static LotusvNext.Expressions.Expression MakeFloatLiteralExpression(float value)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                Literal = MakeValueProtoFloatScalar(value)
-            };
-        }
-        public static LotusvNext.Expressions.Expression MakeStringLiteralExpression(string value)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                Literal = MakeValueProtoStringScalar(value)
-            };
-        }
-
-        public static LotusvNext.OperatorSetIdProto MakeOperatorSetIdProto(string domain, long version)
+        // Model-related helper
+        public static LotusvNext.OperatorSetIdProto MakeOperatorSetId(string domain, long version)
         {
             return new LotusvNext.OperatorSetIdProto()
             {
@@ -617,20 +722,22 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 Version = version
             };
         }
-        public static LotusvNext.FunctionalModelProto MakeFunctionalModelProto(
+        public static LotusvNext.FunctionalModelProto MakeFunctionalModel(
             string name,
-            Dictionary<string, LotusvNext.Types.TypeProto> types,
+            LotusvNext.Types.TypeProto.Types.SignatureDeclProto signature,
+            IEnumerable<LotusvNext.Expressions.Expression> body,
             Dictionary<string, LotusvNext.FunctionDefProto> functions,
-            List<LotusvNext.Expressions.Expression> body
-            )
+            Dictionary<string, LotusvNext.Types.TypeProto> types)
         {
             var functionalModelProto = new LotusvNext.FunctionalModelProto();
+            functionalModelProto.Signature = signature;
             functionalModelProto.Name = name;
             functionalModelProto.Types_.Add(types);
+            functionalModelProto.Functions.Add(functions);
             functionalModelProto.Body.AddRange(body);
             return functionalModelProto;
         }
-        public static LotusvNext.ModelProto MakeModelProto(LotusvNext.FunctionalModelProto model)
+        public static LotusvNext.ModelProto MakeModel(LotusvNext.FunctionalModelProto model)
         {
             var modelProto = new LotusvNext.ModelProto()
             {
@@ -644,216 +751,105 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             };
             return modelProto;
         }
-        public static LotusvNext.Expressions.Expression MakeForEach(string iteratorName, LotusvNext.Expressions.Expression collection)
+        // Call-related helpers
+        public static LotusvNext.Expressions.Call MakeCallProto(
+            LotusvNext.Expressions.Expression target,
+            IEnumerable<LotusvNext.Expressions.Expression> positional)
         {
-            var forEachProto = new LotusvNext.Expressions.ForEach()
-            {
-                Variable = iteratorName,
-                Sequence = collection
-            };
-            var forEachExp = new LotusvNext.Expressions.Expression()
-            {
-                ForEach = forEachProto
-            };
-            return forEachExp;
+            var callProto = new LotusvNext.Expressions.Call();
+            callProto.Target = target; // Assume that it's always a function reference
+            callProto.Positional.AddRange(positional);
+            return callProto;
         }
-        public static LotusvNext.Types.TypeProto TranslateColumnTypeToTypeProto(ColumnType type)
+        public static LotusvNext.Expressions.Expression Call(
+            string name, IEnumerable<LotusvNext.Expressions.Expression> positional)
         {
-            var typeProto = new LotusvNext.Types.TypeProto();
-            ONNX.TensorProto.Types.DataType typeId = ONNX.TensorProto.Types.DataType.Undefined;
-            DataKind rawKind;
-            if (type.IsVector)
-                rawKind = type.AsVector.ItemType.RawKind;
-            else if (type.IsKey)
-                rawKind = type.AsKey.RawKind;
-            else
-                rawKind = type.RawKind;
-
-            switch (rawKind)
+            var funRef = MakeFunRef(name);
+            return new LotusvNext.Expressions.Expression()
             {
-                case DataKind.BL:
-                    typeId = ONNX.TensorProto.Types.DataType.Float;
-                    break;
-                case DataKind.TX:
-                    typeId = ONNX.TensorProto.Types.DataType.String;
-                    break;
-                case DataKind.U4:
-                    typeId = ONNX.TensorProto.Types.DataType.Int64;
-                    break;
-                case DataKind.R4:
-                    typeId = ONNX.TensorProto.Types.DataType.Float;
-                    break;
-                default:
-                    Contracts.Assert(false, "Unknown type.");
-                    break;
-            }
-
-            if (type.IsVector)
+                Call = MakeCallProto(funRef, positional)
+            };
+        }
+        public static LotusvNext.Expressions.Expression Call(
+            string name, params LotusvNext.Expressions.Expression[] positional)
+        {
+            var funRef = MakeFunRef(name);
+            return new LotusvNext.Expressions.Expression()
             {
-                // Return a TypeProto with tensor_type activated
-                var dims = new List<long>();
-                if (type.ValueCount == 0) //Unknown size.
-                    dims.Add(-1);
-                else if (type.ValueCount == 1)
-                    dims.Add(1);
-                else if (type.ValueCount > 1)
+                Call = MakeCallProto(funRef, positional)
+            };
+        }
+        public static LotusvNext.Expressions.Expression MakeComment(string text)
+        {
+            var comment = new LotusvNext.Expressions.Comment();
+            comment.Comment_.Add(text);
+            return new LotusvNext.Expressions.Expression()
+            {
+                Comment = comment
+            };
+        }
+        // For-related helper
+        public static LotusvNext.Expressions.For MakeForProto(
+            LotusvNext.Expressions.Let.Types.Binding induction,
+            LotusvNext.Expressions.Expression condition,
+            LotusvNext.Expressions.Set step,
+            IEnumerable<LotusvNext.Expressions.Expression> body=null)
+        {
+            var forProto = new LotusvNext.Expressions.For();
+            forProto.InductionVariables.Add(induction);
+            forProto.Condition = condition;
+            if (body != null)
+                forProto.Body.AddRange(body);
+            forProto.Step.Add(step);
+            return forProto;
+        }
+        // If-related helper
+        public static LotusvNext.Expressions.Cond.Types.IfThen MakeIfThen(
+            LotusvNext.Expressions.Expression cond, IEnumerable<LotusvNext.Expressions.Expression> todo=null)
+        {
+            var ifThenProto = new LotusvNext.Expressions.Cond.Types.IfThen();
+            ifThenProto.Condition = cond;
+            if (todo != null)
+                ifThenProto.ThenClause.AddRange(todo);
+            return ifThenProto;
+        }
+        public static LotusvNext.Expressions.Expression MakeIf(
+            LotusvNext.Expressions.Expression cond,
+            IEnumerable<LotusvNext.Expressions.Expression> todo=null)
+        {
+            return new LotusvNext.Expressions.Expression()
+            {
+                IfThen = new LotusvNext.Expressions.If()
                 {
-                    var vec = type.AsVector;
-                    for (int i = 0; i < vec.DimCount; i++)
-                        dims.Add(vec.GetDim(i));
+                    IfThen = MakeIfThen(cond, todo)
                 }
-                // Batch size, which is the first element in the dimension list
-                dims?.Insert(0, 1);
-                return MakeTypeProtoTensor(typeId, dims);
-            }
-            else
-            {
-                // Assumes that only scalar is possible. Not sure if other types such as dictionary will present. 
-                return MakeTypeProtoScalar(typeId);
-            }
-        }
-
-        public static LotusvNext.Expressions.Expression MakeFloatTensorValue(
-            string name, List<long> dims, float[] floats)
-        {
-            var tensorProto = new ONNX.TensorProto();
-            for (int i = 0; i < dims.Count; ++i)
-                tensorProto.Dims.Add(dims[i]);
-            tensorProto.FloatData.AddRange(floats);
-
-            var valueProto = new LotusvNext.Expressions.ValueProto()
-            {
-                DenseTensor = tensorProto
-            };
-
-            var expressionProto = new LotusvNext.Expressions.Expression()
-            {
-                Literal = valueProto
-            };
-
-            return expressionProto;
-        }
-
-        public static LotusvNext.Types.TypeProto MakeScalarTypeProto(ONNX.TensorProto.Types.DataType type)
-        {
-            return new LotusvNext.Types.TypeProto()
-            { ScalarType = type };
-
-        }
-        public static LotusvNext.Types.TypeProto.Types.ParameterDeclProto MakeScalarDeclProto(string name, ONNX.TensorProto.Types.DataType type, string docString=null)
-        {
-            return new LotusvNext.Types.TypeProto.Types.ParameterDeclProto()
-            {
-                Name = name,
-                Type = MakeScalarTypeProto(type),
-                DocString = docString ?? ""
             };
         }
-        public static List<LotusvNext.Expressions.Expression> MakeRange(long start, long end, LotusvNext.Expressions.Expression biasExp=null)
+        public static LotusvNext.Expressions.Expression MakeIf(
+            LotusvNext.Expressions.Expression cond,
+            params LotusvNext.Expressions.Expression[] todo)
+        {
+            return new LotusvNext.Expressions.Expression()
+            {
+                IfThen = new LotusvNext.Expressions.If()
+                {
+                    IfThen = MakeIfThen(cond, todo)
+                }
+            };
+        }
+        // Misc
+        public static IEnumerable<LotusvNext.Expressions.Expression> Range(long start, long end, LotusvNext.Expressions.Expression biasExp=null)
         {
             var rangeExps = new List<LotusvNext.Expressions.Expression>();
             for (long i=start; i < end; ++i)
             {
                 if (biasExp == null)
-                    rangeExps.Add(MakeInt64LiteralExpression(i));
+                    rangeExps.Add(Make(i));
                 else
-                    rangeExps.Add(MakeSimpleCall("Add", biasExp, MakeInt64LiteralExpression(i)));
+                    rangeExps.Add(Call("Add", biasExp, Make(i)));
 
             }
             return rangeExps;
         }
-        public static LotusvNext.FunctionDefProto MakeFunctionDefProto(
-            string name,
-            LotusvNext.Types.TypeProto.Types.ParameterDeclProto input,
-            LotusvNext.Types.TypeProto.Types.ParameterDeclProto output,
-            IEnumerable<LotusvNext.Expressions.Expression> body)
-        {
-            var functionDefProto = new LotusvNext.FunctionDefProto();
-            functionDefProto.InputParams.Add(input);
-            functionDefProto.OutputParams.Add(output);
-            functionDefProto.Body.AddRange(body);
-            return functionDefProto;
-        }
-
-        public static LotusvNext.FunctionalModelProto MakeFunctionalModelProto(
-            string name,
-            List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> inputs,
-            List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> outputs,
-            List<LotusvNext.Expressions.Expression> body)
-        {
-            var signature = PmfUtils.MakeSignatureDeclProtoTensor(inputs, outputs, "Function inputs and outputs");
-            var model = new LotusvNext.FunctionalModelProto();
-            model.Name = name;
-            model.Signature = signature;
-            model.Body.AddRange(body);
-            System.Console.Write(model);
-            return model;
-        }
-        public static LotusvNext.Expressions.ValueProto MakeInt32Tensor(IEnumerable<int> content)
-        {
-            return new LotusvNext.Expressions.ValueProto()
-            {
-                DenseTensor = MakeTensorProtoInt32("", content.Count(), content, "")
-            };
-        }
-
-        public static LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto MakeKeyValulePairProtoSringInt64(string key, long value)
-        {
-            return new LotusvNext.Expressions.ValueProto.Types.KeyValuePairProto()
-            {
-                S = key,
-                Value = MakeInt64LiteralExpression(value).Literal
-            };
-        }
-        public static LotusvNext.Expressions.Expression MakeExpressionStringToInt64Map(IEnumerable<string> keys=null, IEnumerable<int> values=null)
-        {
-            var mapProto = new LotusvNext.Expressions.ValueProto.Types.MapProto();
-            if (keys != null && values != null)
-            {
-                using (IEnumerator<string> ik = keys.GetEnumerator())
-                using (IEnumerator<int> iv = values.GetEnumerator())
-                    while (ik.MoveNext() && iv.MoveNext())
-                        mapProto.KeyValuePairs.Add(MakeKeyValulePairProtoSringInt64(ik.Current, iv.Current));
-            }
-
-            var valueProto = new LotusvNext.Expressions.ValueProto();
-            valueProto.Map = mapProto;
-
-            var expProto = new LotusvNext.Expressions.Expression();
-            expProto.Literal = valueProto;
-            return expProto;
-        }
-        public static LotusvNext.Expressions.Expression MakeLambdaExpression(
-            LotusvNext.Types.TypeProto.Types.ParameterDeclProto input,
-            LotusvNext.Types.TypeProto.Types.ParameterDeclProto output,
-            IEnumerable<LotusvNext.Expressions.Expression> body)
-        {
-            var lambdaProto = new LotusvNext.Expressions.Lambda();
-            lambdaProto.InputParams.Add(input);
-            lambdaProto.OutputParams.Add(output);
-            lambdaProto.Body.AddRange(body);
-            return new LotusvNext.Expressions.Expression()
-            {
-                Lambda = lambdaProto
-            };
-        }
-    }
-    /// <summary>
-    /// A context for defining a ONNX output. The context internally contains the model-in-progress being built. This
-    /// same context object is iteratively given to exportable components via the <see cref="ICanSavePmf"/> interface
-    /// and subinterfaces, that attempt to express their operations as ONNX nodes, if they can. At the point that it is
-    /// given to a component, all other components up to that component have already attempted to express themselves in
-    /// this context, with their outputs possibly available in the ONNX graph.
-    /// </summary>
-    public abstract class PmfContext
-    {
-        public abstract string CreateOperatorName(string prefix);
-        public abstract string CreateVariableName(string prefix);
-        public abstract string RetrieveVariableNameOrCreateOne(string prefix);
-        public abstract void AddInputVariable(ColumnType columnType, string colName);
-        public abstract void AddOutputVariable(ColumnType columnType, string variableName);
-        public abstract void AddExpression(LotusvNext.Expressions.Expression expression);
-        public abstract LotusvNext.FunctionalModelProto MakeFunctionalModel();
-        public abstract LotusvNext.ModelProto MakeModel();
     }
 }

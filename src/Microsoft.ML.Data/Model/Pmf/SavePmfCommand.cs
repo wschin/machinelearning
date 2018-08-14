@@ -147,7 +147,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             var assembly = System.Reflection.Assembly.GetExecutingAssembly();
             var versionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
 
-            var ctx = new PmfContextImpl();
+            var ctx = new PmfContext();
             // If we have a predictor, try to get the scorer for it.
             if (rawPred != null)
             {

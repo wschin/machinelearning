@@ -397,6 +397,16 @@ namespace Microsoft.ML.Runtime.Data
 
         public virtual void SaveAsPmf(PmfContext ctx)
         {
+            var schema = Bindings.RowMapper.InputSchema;
+            var pmfBindable = (IBindableCanSavePmf)Bindable;
+            string[] outVariableNames = new string[Bindings.InfoCount];
+            for (int iinfo = 0; iinfo < Bindings.InfoCount; ++iinfo)
+            {
+                int colIndex = Bindings.MapIinfoToCol(iinfo);
+                string colName = Bindings.GetColumnName(colIndex);
+                outVariableNames[iinfo] = colName;
+            }
+            pmfBindable.SaveAsPmf(ctx, schema, outVariableNames);
         }
 
         protected override bool WantParallelCursors(Func<int, bool> predicate)

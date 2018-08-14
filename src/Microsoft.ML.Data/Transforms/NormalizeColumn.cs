@@ -463,7 +463,7 @@ namespace Microsoft.ML.Runtime.Data
                 throw host.ExceptUserArg(nameof(AffineArgumentsBase.Column), "Wrong column type. Expected: R4, R8, Vec<R4, n> or Vec<R8, n>. Got: {0}.", typeSrc.ToString());
             }
 
-            public abstract bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount);
+            public abstract bool SaveAsPmfCore(PmfContext ctx, int featureCount, string srcName, string dstName);
 
             private abstract class ImplOne<TFloat> : AffineColumnFunction
             {
@@ -657,7 +657,7 @@ namespace Microsoft.ML.Runtime.Data
                     loaderSignature: LoaderSignature);
             }
 
-            public bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+            public bool SaveAsPmfCore(PmfContext ctx, int featureCount, string srcName, string dstName)
             {
                 throw new NotImplementedException();
             }
@@ -724,7 +724,7 @@ namespace Microsoft.ML.Runtime.Data
                     loaderSignature: LoaderSignature);
             }
 
-            public bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+            public bool SaveAsPmfCore(PmfContext ctx, int featureCount, string srcName, string dstName)
             {
                 throw new NotImplementedException();
             }

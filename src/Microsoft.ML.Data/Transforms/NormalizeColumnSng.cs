@@ -584,7 +584,7 @@ namespace Microsoft.ML.Runtime.Data
                         node.AddAttribute("scale", Enumerable.Repeat(Scale, featureCount));
                         return true;
                     }
-                    public override bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+                    public override bool SaveAsPmfCore(PmfContext ctx, int featureCount, string srcName, string dstName)
                     {
                         return true;
                     }
@@ -849,88 +849,53 @@ namespace Microsoft.ML.Runtime.Data
                         Contracts.Assert(ii == count);
                         Contracts.Assert(inz == nz.Length);
                     }
-                    public override bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+                    public override bool SaveAsPmfCore(PmfContext ctx, int featureCount, string srcName, string dstName)
                     {
                         // Assume that input is visible to this scope, so we can use a reference to refer to that input 
-                        string inputName = ctx.RetrieveVariableNameOrCreateOne("input"); // This function should not create variables...
-                        string outputName = ctx.CreateVariableName("output");
+                        var srcRef = ctx.GetRef(srcName);
+                        var dstRef = ctx.GetRef(dstName);
 
                         // Define bias
-                        var biasTensorName = ctx.CreateVariableName("bias tensor");
+                        var biasTensorName = ctx.CreateVariableName("bias");
                         var bias = new float[featureCount];
                         for (int i = 0; i < featureCount; ++i)
                             bias[i] = Offset == null ? 0.0f : Offset[i];
-
-                        var biasTensorExpression = PmfUtils.MakeFloatTensorValue(biasTensorName, new List<long> {featureCount}, bias);
-
-                        var biasName = ctx.CreateVariableName("bias");
-                        var biasDefinition = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(biasName, biasTensorExpression));
-                        ctx.AddExpression(biasDefinition);
+                        var biasName = ctx.Declare(bias);
+                        ctx.AddExpression(ctx.GetDef(biasName));
 
                         // Define scale
                         var scale = new float[featureCount];
                         for (int i = 0; i < featureCount; ++i)
                             scale[i] = Scale == null ? 1.0f : Scale[i];
 
-                        var scaleTensorName = ctx.CreateVariableName("scale tensor");
-                        var scaleTensorExpression = PmfUtils.MakeFloatTensorValue(scaleTensorName, new List<long> {featureCount}, scale);
-                        var scaleName = ctx.CreateVariableName("scale");
-                        var scaleDefinition = PmfUtils.MakeLetExpression(PmfUtils.MakeBinding(scaleName, scaleTensorExpression));
-                        ctx.AddExpression(scaleDefinition);
+                        var scaleName = ctx.Declare(scale);
+                        ctx.AddExpression(ctx.GetDef(scaleName));
 
-                        // Define iterator, i=0, and then associate it with an reference 
-                        string inductionName = ctx.CreateVariableName("i");
-                        var inductionBinding = PmfUtils.MakeBindingProto(inductionName, PmfUtils.MakeInt64LiteralExpression(0));
-                        var inductionVariable = PmfUtils.MakeValueProtoVariableReference(inductionName); // in the beginning of a loop
+                        // Define for-loop, iterating from 0 to featureCount-1
+                        string iName = ctx.CreateVariableName("i");
+                        var forExp = ctx.MakeFor(iName, 0, featureCount);
+                        var iRef = ctx.GetRef(iName);
 
-                        // Set up stop condition
-                        var expressionsCond = new List<LotusvNext.Expressions.Expression>();
-                        expressionsCond.Add(inductionVariable);
-                        expressionsCond.Add(PmfUtils.MakeInt64LiteralExpression(featureCount));
-                        var loopCond = PmfUtils.MakeCall(PmfUtils.MakeFunctionReferenceExpression("<"), expressionsCond);
+                        // Extract x[i]
+                        var xiName = ctx.Access(srcRef, iRef, "x_i");
+                        forExp.For.Body.Add(ctx.GetDef(xiName));
 
-                        // Make i += 1
-                        var step = PmfUtils.MakeSetProto(inductionName, PmfUtils.MakeInt64LiteralExpression(1));
-
-                        // The expression stored in For
-                        var loopBody = new List<LotusvNext.Expressions.Expression>();
-
-                        // Extract x[i]. First define the expression to evaluate x[i] and then assign it to a reference
-                        var xRef = PmfUtils.MakeValueProtoVariableReference(inputName);
-                        var xiExp = PmfUtils.MakeElementAccess(xRef, inductionVariable);
-                        var xiName = ctx.CreateVariableName("x_i");
-                        var xiBinding = PmfUtils.MakeBinding(xiName, xiExp);
-                        var xiAssign = PmfUtils.MakeLetExpression(xiBinding); // for
-                        var xiRef = PmfUtils.MakeValueProtoVariableReference(xiName);
-                        loopBody.Add(xiAssign);
-
-                        // Extract b[i].
-                        var bRef = PmfUtils.MakeValueProtoVariableReference(biasName);
-                        var biExp = PmfUtils.MakeElementAccess(bRef, inductionVariable);
-                        var biName = ctx.CreateVariableName("b_i");
-                        var biBinding = PmfUtils.MakeBinding(biName, biExp);
-                        var biAssign = PmfUtils.MakeLetExpression(biBinding); // for
-                        var biRef = PmfUtils.MakeValueProtoVariableReference(biName);
-                        loopBody.Add(biAssign);
+                        // Extract b[i]
+                        var biName = ctx.Access(ctx.GetRef(biasName), iRef, "b_i");
+                        forExp.For.Body.Add(ctx.GetDef(biName));
 
                         // Extract a[i]
-                        var aRef = PmfUtils.MakeValueProtoVariableReference(scaleName);
-                        var aiExp = PmfUtils.MakeElementAccess(aRef, inductionVariable); // for
-                        var aiName = ctx.CreateVariableName("a_i");
-                        var aiBinding = PmfUtils.MakeBinding(aiName, aiExp);
-                        var aiAssign = PmfUtils.MakeLetExpression(aiBinding);
-                        var aiRef = PmfUtils.MakeValueProtoVariableReference(aiName);
-                        loopBody.Add(aiAssign);
+                        var aiName = ctx.Access(ctx.GetRef(scaleName), iRef, "a_i");
+                        forExp.For.Body.Add(ctx.GetDef(aiName));
 
                         // Call substraction and multiplication to do y_i = a_i * (x_i - b_i)
-                        var subExpression = PmfUtils.MakeCall(PmfUtils.MakeFunctionReferenceExpression("Sub"), xiRef, biRef);
-                        var mulExpression = PmfUtils.MakeCall(PmfUtils.MakeFunctionReferenceExpression("Mul"), aiRef, subExpression);
-                        loopBody.Add(mulExpression);
-                        
-                        // Make the for loop
-                        var forExpression = PmfUtils.MakeFor(inductionBinding, loopCond, loopBody, step);
+                        var normExp = PmfUtils.Call("Mul", ctx.GetRef(aiName), PmfUtils.Call("Sub", ctx.GetRef(xiName), ctx.GetRef(biName)));
 
-                        ctx.AddExpression(forExpression);
+                        // Assign
+                        var assignExp = PmfUtils.Call("Assign", dstRef, iRef, normExp);
+                        forExp.For.Body.Add(assignExp);
+                        
+                        ctx.AddExpression(forExp);
                         return true;
                     }
                 }

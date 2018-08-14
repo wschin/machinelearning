@@ -433,7 +433,8 @@ namespace Microsoft.ML.Runtime.Data
 
         public override bool SaveAsPmf(PmfContext ctx, RoleMappedSchema schema, string[] outputNames)
         {
-            return false;
+            var mapper = ValueMapper as ISingleCanSavePmf;
+            return mapper.SaveAsPmf(ctx, outputNames, schema.Feature.Name);
         }
 
         private void CheckValid(out IValueMapperDist distMapper)

@@ -597,7 +597,7 @@ namespace Microsoft.ML.Runtime.Data
                         return del;
                     }
 
-                    public override bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+                    public override bool SaveAsPmfCore(PmfContext ctx, int featureCount, string srcName, string dstName)
                     {
                         throw new NotImplementedException();
                     }
@@ -849,7 +849,7 @@ namespace Microsoft.ML.Runtime.Data
                         Contracts.Assert(inz == nz.Length);
                     }
 
-                    public override bool SaveAsPmfColumnCore(PmfContext ctx, int featureCount)
+                    public override bool SaveAsPmfCore(PmfContext ctx, int featureCount, string srcName, string dstName)
                     {
                         throw new NotImplementedException();
                     }
