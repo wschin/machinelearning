@@ -1481,7 +1481,7 @@ namespace Microsoft.ML.Runtime.Internal.Calibration
 
             var mulExp = PmfUtils.Call("Mul", ctx.GetRef(alphaName), ctx.GetRef(scoreName));
             var addExp = PmfUtils.Call("Add", ctx.GetRef(betaName), mulExp);
-            var sigmoidExp = PmfUtils.Call("Sigmoid", addExp);
+            var sigmoidExp = PmfUtils.Call("ai.onnx.ml.Sigmoid", addExp);
 
             var dstName = ctx.CreateVariableName(scoreProbablityColumnNames[1]);
             var setExp = PmfUtils.MakeSet(dstName, sigmoidExp);

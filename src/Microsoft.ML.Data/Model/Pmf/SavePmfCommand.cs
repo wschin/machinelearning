@@ -212,9 +212,8 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 if (_outputsToDrop.Contains(idataviewColumnName) || _inputsToDrop.Contains(idataviewColumnName))
                     continue;
 
-                var variableName = ctx.RetrieveVariableNameOrCreateOne(idataviewColumnName);
-                if (variableName != null)
-                    ctx.AddOutputVariable(end.Schema.GetColumnType(i), variableName);
+                if (idataviewColumnName != null)
+                    ctx.AddOutputVariable(end.Schema.GetColumnType(i), idataviewColumnName);
             }
             var model = ctx.MakeModel();
             if (_outputModelPath != null)

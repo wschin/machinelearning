@@ -103,13 +103,17 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             _refPool[name] = PmfUtils.MakeVarRef(name);
         }
 
-        public void AddOutputVariable(ColumnType columnType, string name)
+        public void AddOutputVariable(ColumnType columnType, string colName)
         {
+            var existingName = RetrieveVariableNameOrCreateOne(colName);
             // Declare name in IR
+            var name = CreateVariableName(colName);
             // Create TypeProto according to the input column
             var typeProto = PmfUtils.MakeType(columnType);
+            // Create ParameterDeclProto based on information above
             _modelOutputParameters[name] = typeProto;
             _refPool[name] = PmfUtils.MakeVarRef(name);
+            AddExpression(PmfUtils.MakeSet(name, _refPool[existingName]));
         }
         public void AddExpression(LotusvNext.Expressions.Expression expression)
         {
@@ -168,8 +172,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 name = CreateVariableName("int64Value");
 
             var valExp = PmfUtils.Make(val);
-            var valDef = PmfUtils.MakeLet(name, valExp);
-            _defPool[name] = valDef;
+            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -185,8 +188,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 name = CreateVariableName("int64Array");
 
             var valExp = PmfUtils.Make(vals);
-            var valDef = PmfUtils.MakeLet(name, valExp);
-            _defPool[name] = valDef;
+            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -202,8 +204,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 name = CreateVariableName("floatValue");
 
             var valExp = PmfUtils.Make(val);
-            var valDef = PmfUtils.MakeLet(name, valExp);
-            _defPool[name] = valDef;
+            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -219,8 +220,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 name = CreateVariableName("floatArray");
 
             var valExp = PmfUtils.Make(vals);
-            var valDef = PmfUtils.MakeLet(name, valExp);
-            _defPool[name] = valDef;
+            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -236,8 +236,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 name = CreateVariableName("stringValue");
 
             var valExp = PmfUtils.Make(val);
-            var valDef = PmfUtils.MakeLet(name, valExp);
-            _defPool[name] = valDef;
+            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -253,8 +252,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 name = CreateVariableName("stringArray");
 
             var valExp = PmfUtils.Make(vals);
-            var valDef = PmfUtils.MakeLet(name, valExp);
-            _defPool[name] = valDef;
+            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -268,9 +266,8 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             if (name == null)
                 name = CreateVariableName("column");
 
-            // Consider to add initializer here
-            // var valDef = PmfUtils.MakeLet(name, valExp);
-            // _defPool[name] = valDef;
+            var valExp = PmfUtils.MakeDefault(colType);
+            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;

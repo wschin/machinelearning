@@ -651,6 +651,76 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             }
             return typeProto;
         }
+        public static LotusvNext.Expressions.Expression MakeDefault(ColumnType type)
+        {
+            DataKind rawKind;
+            if (type.IsVector)
+                rawKind = type.AsVector.ItemType.RawKind;
+            else if (type.IsKey)
+                rawKind = type.AsKey.RawKind;
+            else
+                rawKind = type.RawKind;
+
+            var valExp = new LotusvNext.Expressions.Expression();
+            if (type.IsVector)
+            {
+                var dims = new List<long>();
+                if (type.IsVector)
+                {
+                    if (type.ValueCount == 0) // Unknown size.
+                        dims.Add(-1);
+                    else if (type.ValueCount == 1)
+                        dims.Add(1);
+                    else if (type.ValueCount > 1)
+                    {
+                        var vec = type.AsVector;
+                        for (int i = 0; i < vec.DimCount; i++)
+                            dims.Add(vec.GetDim(i));
+                    }
+                }
+                var dimProd = dims.Aggregate((a, b) => a * b);
+                switch (rawKind)
+                {
+                    case DataKind.BL:
+                        valExp = Make(Enumerable.Repeat(0L, (int) dimProd), dims);
+                        break;
+                    case DataKind.TX:
+                        valExp = Make(Enumerable.Repeat("", (int) dimProd), dims);
+                        break;
+                    case DataKind.U4:
+                        valExp = Make(Enumerable.Repeat(0L, (int) dimProd), dims);
+                        break;
+                    case DataKind.R4:
+                        valExp = Make(Enumerable.Repeat(0f, (int) dimProd), dims);
+                        break;
+                    default:
+                        Contracts.Assert(false, "Unknown type.");
+                        break;
+                }
+            }
+            else
+            {
+                switch (rawKind)
+                {
+                    case DataKind.BL:
+                        valExp = Make(0L);
+                        break;
+                    case DataKind.TX:
+                        valExp = Make("");
+                        break;
+                    case DataKind.U4:
+                        valExp = Make(0L);
+                        break;
+                    case DataKind.R4:
+                        valExp = Make(0f);
+                        break;
+                    default:
+                        Contracts.Assert(false, "Unknown type.");
+                        break;
+                }
+            }
+            return valExp;
+        }
         public static LotusvNext.Types.TypeProto.Types.SignatureDeclProto MakeSignature(
             IEnumerable<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> inputs,
             IEnumerable<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> outputs)

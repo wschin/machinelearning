@@ -891,7 +891,7 @@ namespace Microsoft.ML.Runtime.Data
                         var normExp = PmfUtils.Call("Mul", ctx.GetRef(aiName), PmfUtils.Call("Sub", ctx.GetRef(xiName), ctx.GetRef(biName)));
 
                         // Assign
-                        var assignExp = PmfUtils.Call("Assign", dstRef, iRef, normExp);
+                        var assignExp = PmfUtils.Call("Assign", dstRef, normExp, iRef);
                         forExp.For.Body.Add(assignExp);
                         
                         ctx.AddExpression(forExp);
