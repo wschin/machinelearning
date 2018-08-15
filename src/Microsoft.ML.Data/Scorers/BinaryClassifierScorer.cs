@@ -229,10 +229,12 @@ namespace Microsoft.ML.Runtime.Data
                 // Input: ctxoutColumnNames[2]
                 // Output: outColumnNames[0] 
                 var srcName = ctx.RetrieveVariableNameOrCreateOne(outColumnNames[2]);
-                var dstName = ctx.CreateVariableName(outColumnNames[0]);
+                var dstName = ctx.Declare(0L, outColumnNames[0]);
                 var tName = ctx.Declare(0.5f);
-                var setExp = PmfUtils.MakeSet(dstName, PmfUtils.Call("Greater", PmfUtils.MakeVarRef(srcName), ctx.GetExp(tName)));
-                ctx.AddExpression(setExp);
+                var condExp = PmfUtils.Call("Greater", PmfUtils.MakeVarRef(srcName), ctx.GetExp(tName));
+                var ifExp = PmfUtils.MakeIf(condExp, PmfUtils.MakeSet(dstName, PmfUtils.Make(1)));
+                ctx.AddExpression(ctx.GetDef(dstName));
+                ctx.AddExpression(ifExp);
             }
         }
 
