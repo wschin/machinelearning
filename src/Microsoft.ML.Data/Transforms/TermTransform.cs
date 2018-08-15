@@ -746,18 +746,18 @@ namespace Microsoft.ML.Runtime.Data
             }
 
             // Make dictionary and its reference
-            var dName = ctx.CreateVariableName("dictionary");
+            var dName = ctx.DeclareRef("dictionary");
             var dExp = PmfUtils.MakeDictionary(dictionaryKeys, dictionaryVals);
             var dDef = PmfUtils.MakeLet(dName, dExp);
-            ctx.AddExpression(dDef);
+            ctx.AddExp(dDef);
             var dRef = PmfUtils.MakeVarRef(dName);
 
             // Compute output from input 
-            var xName = ctx.CreateVariableName(srcVariableName);
+            var xName = ctx.DeclareRef(srcVariableName);
             var xRef = PmfUtils.MakeVarRef(xName);
-            var yName = ctx.CreateVariableName(dstVariableName);
+            var yName = ctx.DeclareRef(dstVariableName);
             var yDef = PmfUtils.MakeLet(yName, PmfUtils.MakeElementAccess(dRef, xRef));
-            ctx.AddExpression(yDef);
+            ctx.AddExp(yDef);
 
             return true;
         }

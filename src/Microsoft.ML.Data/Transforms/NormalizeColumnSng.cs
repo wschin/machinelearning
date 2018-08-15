@@ -860,7 +860,7 @@ namespace Microsoft.ML.Runtime.Data
                         for (int i = 0; i < featureCount; ++i)
                             bias[i] = Offset == null ? 0.0f : Offset[i];
                         var biasName = ctx.Declare(bias, "bias");
-                        ctx.AddExpression(ctx.GetDef(biasName));
+                        ctx.AddExp(ctx.GetDef(biasName));
 
                         // Define scale
                         var scale = new float[featureCount];
@@ -868,11 +868,11 @@ namespace Microsoft.ML.Runtime.Data
                             scale[i] = Scale == null ? 1.0f : Scale[i];
 
                         var scaleName = ctx.Declare(scale, "scale");
-                        ctx.AddExpression(ctx.GetDef(scaleName));
+                        ctx.AddExp(ctx.GetDef(scaleName));
 
                         // Define for-loop, iterating from 0 to featureCount-1
-                        string iName = ctx.CreateVariableName("i");
-                        var forExp = ctx.MakeFor(iName, 0, featureCount);
+                        string iName = ctx.DeclareRef("i");
+                        var forExp = PmfUtils.MakeFor(iName, 0, featureCount);
                         var iRef = ctx.GetRef(iName);
 
                         // Extract x[i]
@@ -894,7 +894,7 @@ namespace Microsoft.ML.Runtime.Data
                         var assignExp = PmfUtils.Call("Assign", dstRef, normExp, iRef);
                         forExp.For.Body.Add(assignExp);
                         
-                        ctx.AddExpression(forExp);
+                        ctx.AddExp(forExp);
                         return true;
                     }
                 }

@@ -608,9 +608,9 @@ namespace Microsoft.ML.Runtime.Data
                 Schema.TryGetColumnIndex(info.Name, out int dstColId);
                 var dstType = Schema.GetColumnType(dstColId);
 
-                var srcName = ctx.RetrieveVariableNameOrCreateOne(Source.Schema.GetColumnName(info.Source));
-                var dstName = ctx.Declare(dstType, ctx.CreateVariableName(info.Name));
-                ctx.AddExpression(ctx.GetDef(dstName));
+                var srcName = ctx.Retrieve(Source.Schema.GetColumnName(info.Source));
+                var dstName = ctx.Declare(dstType, ctx.DeclareRef(info.Name));
+                ctx.AddExp(ctx.GetDef(dstName));
 
                 SaveAsPmfCore(ctx, iinfo, info, srcName, dstName);
             }

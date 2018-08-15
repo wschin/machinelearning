@@ -882,6 +882,66 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             forProto.Step.Add(step);
             return forProto;
         }
+        // For
+        public static LotusvNext.Expressions.Expression MakeFor(
+            LotusvNext.Expressions.Let.Types.Binding induction,
+            LotusvNext.Expressions.Expression condition,
+            LotusvNext.Expressions.Set step,
+            IEnumerable<LotusvNext.Expressions.Expression> body=null)
+        {
+            return new LotusvNext.Expressions.Expression()
+            {
+                For = PmfUtils.MakeForProto(induction, condition, step, body)
+            };
+        }
+        public static LotusvNext.Expressions.Expression MakeFor(
+            string iName, long iStart, long iEnd, long iStep=1)
+        {
+            // Note that we assume that the reference to iName have been added into the context so that MakeVarRef can produce
+            // meaningful object.
+            var binding = MakeBinding(iName, PmfUtils.Make(iStart));
+            var condExp = Call("Less", PmfUtils.MakeVarRef(iName), PmfUtils.Make(iEnd));
+            var iStepProto = MakeSet(iName, PmfUtils.Make(iStep)).Set;
+
+            return MakeFor(binding, condExp, iStepProto);
+        }
+        public LotusvNext.Expressions.Expression MakeFor(
+            string iName, string startName, string endName, long iStep=1)
+        {
+            var binding = PmfUtils.MakeBinding(iName, PmfUtils.MakeVarRef(startName));
+            var cond = PmfUtils.Call("Less", PmfUtils.MakeVarRef(iName) , PmfUtils.MakeVarRef(endName));
+            var iStepProto = PmfUtils.MakeSet(iName, PmfUtils.Make(iStep)).Set;
+
+            return MakeFor(binding, cond, iStepProto);
+        }
+        public LotusvNext.Expressions.Expression MakeForEach(
+            string iName, LotusvNext.Expressions.Expression collection)
+        {
+            var forEachProto = new LotusvNext.Expressions.ForEach()
+            {
+                Variable = iName,
+                Sequence = collection
+            };
+            var forEachExp = new LotusvNext.Expressions.Expression()
+            {
+                ForEach = forEachProto
+            };
+            return forEachExp;
+        }
+        public LotusvNext.Expressions.Expression MakeForEach(
+            string iName, string cName)
+        {
+            var forEachProto = new LotusvNext.Expressions.ForEach()
+            {
+                Variable = iName,
+                Sequence = PmfUtils.MakeVarRef(cName)
+            };
+            var forEachExp = new LotusvNext.Expressions.Expression()
+            {
+                ForEach = forEachProto
+            };
+            return forEachExp;
+        }
         // If-related helper
         public static LotusvNext.Expressions.Cond.Types.IfThen MakeIfThen(
             LotusvNext.Expressions.Expression cond, IEnumerable<LotusvNext.Expressions.Expression> todo=null)

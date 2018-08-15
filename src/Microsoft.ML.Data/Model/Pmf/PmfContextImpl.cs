@@ -16,14 +16,12 @@ namespace Microsoft.ML.Runtime.Model.Pmf
     /// </summary>
     public class PmfContext
     {
-        private Dictionary<string, string> _ourColumnNameToPmfNameMap;
-        private Dictionary<string, string> _ourOperatorNameToPmfNameMap;
+        // Each (key, value) pair is a pair from ML.NET column name to the associated variable name in IR
+        private Dictionary<string, string> _nameMap;
         // All existing variable names. New variables must not exist in this set.
-        private HashSet<string> _variableNamePool;
         // All existing node names. New node names must not alrady exist in this set.
-        private HashSet<string> _operatorNamePool;
-        private Dictionary<string, LotusvNext.Types.TypeProto> _modelInputParameters;
-        private Dictionary<string, LotusvNext.Types.TypeProto> _modelOutputParameters;
+        private List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> _modelInputs;
+        private List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto> _modelOutputs;
         private Dictionary<string, LotusvNext.Types.TypeProto> _varTypes;
         private Dictionary<string, LotusvNext.Expressions.Expression> _refPool;
         private Dictionary<string, LotusvNext.Expressions.Expression> _defPool;
@@ -32,12 +30,9 @@ namespace Microsoft.ML.Runtime.Model.Pmf
 
         public PmfContext()
         {
-            _variableNamePool = new HashSet<string>();
-            _operatorNamePool = new HashSet<string>();
-            _ourColumnNameToPmfNameMap = new Dictionary<string, string>();
-            _ourOperatorNameToPmfNameMap = new Dictionary<string, string>();
-            _modelInputParameters = new Dictionary<string, LotusvNext.Types.TypeProto>();
-            _modelOutputParameters = new Dictionary<string, LotusvNext.Types.TypeProto>();
+            _nameMap = new Dictionary<string, string>();
+            _modelInputs = new List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto>();
+            _modelOutputs = new List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto>();
             _varTypes = new Dictionary<string, LotusvNext.Types.TypeProto>();
             _functions = new Dictionary<string, LotusvNext.FunctionDefProto>();
             _expressions = new List<LotusvNext.Expressions.Expression>();
@@ -45,107 +40,73 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             _defPool = new Dictionary<string, Expression>();
         }
 
-        private string CreateUniqueString(ref HashSet<string> pool, string prefix)
+        private string CreateUniqueString(ref Dictionary<string, string> pool, string prefix)
         {
-            if (!pool.Contains(prefix))
+            if (!pool.ContainsValue(prefix))
             {
-                pool.Add(prefix);
+                pool.Add(prefix, prefix);
                 return prefix;
             }
 
-            // The string pool contains the input prefix, so we are going to append something to make a unique string.
- 
             // The index will be appended
             int count = 1;
             // Candidate string
             string derivedString = prefix + count;;
             // Keep increasing count until prefix + count cannot be found in the pool
-            while(pool.Contains(derivedString))
+            while(pool.ContainsValue(derivedString))
             {
                 derivedString = prefix + ++count;
             }
             // Add derived_string into the pool so that we will not declare the same string again in the future
-            pool.Add(derivedString);
+            pool[prefix] = derivedString;
             return derivedString;
         }
-        public string CreateOperatorName(string prefix)
-        {
-            string name = CreateUniqueString(ref _variableNamePool, prefix);
-            _ourOperatorNameToPmfNameMap[prefix] = name;
-            return name;
-        }
 
-        public string CreateVariableName(string prefix)
+        public string DeclareRef(string prefix)
         {
-            string name = CreateUniqueString(ref _operatorNamePool, prefix);
-            _ourColumnNameToPmfNameMap[prefix] = name;
+            string name = CreateUniqueString(ref _nameMap, prefix);
+            _nameMap[prefix] = name;
             _refPool[name] = PmfUtils.MakeVarRef(name);
             return name;
         }
 
-        public string RetrieveVariableNameOrCreateOne(string prefix)
+        public string Retrieve(string prefix)
         {
-            if (_ourColumnNameToPmfNameMap.ContainsKey(prefix))
-                return _ourColumnNameToPmfNameMap[prefix];
-            else
-                return CreateVariableName(prefix);
+            return _nameMap[prefix];
         }
 
         // Use to create I/O for FunctionalModelProto
-        public void AddInputVariable(ColumnType columnType, string colName)
+        public void AddModelInput(ColumnType columnType, string colName)
         {
-            // Declare name in IR
-            var name = CreateVariableName(colName);
-            // Create TypeProto according to the input column
+            var name = DeclareRef(colName);
             var typeProto = PmfUtils.MakeType(columnType);
-            // Create ParameterDeclProto based on information above
-            _modelInputParameters[name] = typeProto;
-            _refPool[name] = PmfUtils.MakeVarRef(name);
+            _modelInputs.Add(PmfUtils.MakeParam(name, typeProto));
         }
 
-        public void AddOutputVariable(ColumnType columnType, string colName)
+        public void AddModelOutput(ColumnType columnType, string colName)
         {
-            var existingName = RetrieveVariableNameOrCreateOne(colName);
-            // Declare name in IR
-            var name = CreateVariableName(colName);
-            // Create TypeProto according to the input column
+            var intermediateName = Retrieve(colName);
+
+            var name = DeclareRef(colName);
             var typeProto = PmfUtils.MakeType(columnType);
-            // Create ParameterDeclProto based on information above
-            _modelOutputParameters[name] = typeProto;
-            _refPool[name] = PmfUtils.MakeVarRef(name);
-            AddExpression(PmfUtils.MakeSet(name, _refPool[existingName]));
+            _modelOutputs.Add(PmfUtils.MakeParam(name, typeProto));
+
+            _defPool[name] = PmfUtils.MakeSet(name, _refPool[intermediateName]);
+            AddExp(_defPool[name]);
         }
-        public void AddExpression(LotusvNext.Expressions.Expression expression)
+        public void AddExp(params LotusvNext.Expressions.Expression[] expression)
         {
-            _expressions.Add(expression);
+            _expressions.AddRange(expression);
         }
         // Review: Make... should be moved to PmfContext
         public FunctionalModelProto MakeFunctionalModel()
         {
-            var inputs = new List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto>();
-            var outputs = new List<LotusvNext.Types.TypeProto.Types.ParameterDeclProto>();
-            foreach (var i in _modelInputParameters)
-                inputs.Add(PmfUtils.MakeParam(i.Key, i.Value));
-            foreach (var i in _modelOutputParameters)
-                outputs.Add(PmfUtils.MakeParam(i.Key, i.Value));
-
-            var signature = PmfUtils.MakeSignature(inputs, outputs);
-
+            var signature = PmfUtils.MakeSignature(_modelInputs, _modelOutputs);
             return PmfUtils.MakeFunctionalModel("Model", signature, _expressions, _functions, _varTypes);
         }
         public ModelProto MakeModel()
         {
-            var modelProto = new ModelProto
-            {
-                Profile = "ONNX",
-                IrVersion = 3L,
-                ProducerName = "ML.NET",
-                ProducerVersion = "0",
-                Domain = "com.microsoft",
-                ModelVersion = 0L,
-                Model = MakeFunctionalModel()
-            };
-            return modelProto;
+            return PmfUtils.MakeModel(MakeFunctionalModel());
         }
 
         public Expression GetRef(string name)
@@ -169,10 +130,10 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             var exps = new List<Expression>();
 
             if (name == null)
-                name = CreateVariableName("int64Value");
+                name = DeclareRef("int64Value");
 
             var valExp = PmfUtils.Make(val);
-            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
+            _defPool[name] = PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -185,10 +146,10 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             var exps = new List<Expression>();
 
             if (name == null)
-                name = CreateVariableName("int64Array");
+                name = DeclareRef("int64Array");
 
             var valExp = PmfUtils.Make(vals);
-            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
+            _defPool[name] = PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -201,10 +162,10 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             var exps = new List<Expression>();
 
             if (name == null)
-                name = CreateVariableName("floatValue");
+                name = DeclareRef("floatValue");
 
             var valExp = PmfUtils.Make(val);
-            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
+            _defPool[name] = PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -217,10 +178,10 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             var exps = new List<Expression>();
 
             if (name == null)
-                name = CreateVariableName("floatArray");
+                name = DeclareRef("floatArray");
 
             var valExp = PmfUtils.Make(vals);
-            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
+            _defPool[name] = PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -233,10 +194,10 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             var exps = new List<Expression>();
 
             if (name == null)
-                name = CreateVariableName("stringValue");
+                name = DeclareRef("stringValue");
 
             var valExp = PmfUtils.Make(val);
-            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
+            _defPool[name] = PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -249,10 +210,10 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             var exps = new List<Expression>();
 
             if (name == null)
-                name = CreateVariableName("stringArray");
+                name = DeclareRef("stringArray");
 
             var valExp = PmfUtils.Make(vals);
-            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
+            _defPool[name] = PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -264,10 +225,10 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             var typeProto = PmfUtils.MakeType(colType);
 
             if (name == null)
-                name = CreateVariableName("column");
+                name = DeclareRef("column");
 
             var valExp = PmfUtils.MakeDefault(colType);
-            _defPool[name] = _modelOutputParameters.ContainsKey(name) ? PmfUtils.MakeSet(name, valExp) : PmfUtils.MakeLet(name, valExp);
+            _defPool[name] = PmfUtils.MakeLet(name, valExp);
 
             var valRef = PmfUtils.MakeVarRef(name);
             _refPool[name] = valRef;
@@ -280,7 +241,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
         public string Access(LotusvNext.Expressions.Expression container, LotusvNext.Expressions.Expression path, string name=null)
         {
             if (name == null)
-                name = CreateVariableName("column");
+                name = DeclareRef("column");
 
             var accessExp = PmfUtils.MakeElementAccess(container, path);
             var accessDef = PmfUtils.MakeLet(name, accessExp);
@@ -290,51 +251,6 @@ namespace Microsoft.ML.Runtime.Model.Pmf
             _refPool[name] = accessRef;
 
             return name;
-        }
-        // For
-        public LotusvNext.Expressions.Expression MakeFor(
-            LotusvNext.Expressions.Let.Types.Binding induction,
-            LotusvNext.Expressions.Expression condition,
-            LotusvNext.Expressions.Set step,
-            IEnumerable<LotusvNext.Expressions.Expression> body=null)
-        {
-            return new LotusvNext.Expressions.Expression()
-            {
-                For = PmfUtils.MakeForProto(induction, condition, step, body)
-            };
-        }
-        public LotusvNext.Expressions.Expression MakeFor(
-            string iName, long iStart, long iEnd, long iStep=1)
-        {
-            var binding = PmfUtils.MakeBinding(iName, PmfUtils.Make(iStart));
-            var iEndExp = PmfUtils.Make(iEnd);
-            var condExp = PmfUtils.Call("Less", GetRef(iName), iEndExp);
-            var iStepProto = PmfUtils.MakeSet(iName, PmfUtils.Make(iStep)).Set;
-
-            return MakeFor(binding, condExp, iStepProto);
-        }
-        public LotusvNext.Expressions.Expression MakeFor(
-            string iName, string startName, string endName, long iStep=1)
-        {
-            var binding = PmfUtils.MakeBinding(iName, PmfUtils.MakeVarRef(startName));
-            var cond = PmfUtils.Call("Less", GetRef(iName) , PmfUtils.MakeVarRef(endName));
-            var iStepProto = PmfUtils.MakeSet(iName, PmfUtils.Make(iStep)).Set;
-
-            return MakeFor(binding, cond, iStepProto);
-        }
-        public LotusvNext.Expressions.Expression MakeForEach(
-            string iName, LotusvNext.Expressions.Expression collection)
-        {
-            var forEachProto = new LotusvNext.Expressions.ForEach()
-            {
-                Variable = iName,
-                Sequence = collection
-            };
-            var forEachExp = new LotusvNext.Expressions.Expression()
-            {
-                ForEach = forEachProto
-            };
-            return forEachExp;
         }
     }
 }

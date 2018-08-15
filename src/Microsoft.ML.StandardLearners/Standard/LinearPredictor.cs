@@ -251,17 +251,17 @@ namespace Microsoft.ML.Runtime.Learners
 
         public bool SaveAsPmf(PmfContext ctx, string[] outputs, string featureColumn)
         {
-            var srcName = ctx.RetrieveVariableNameOrCreateOne(featureColumn);
+            var srcName = ctx.Retrieve(featureColumn);
             var dstName = ctx.Declare(Bias, outputs[0]);
-            ctx.AddExpression(ctx.GetDef(dstName));
+            ctx.AddExp(ctx.GetDef(dstName));
 
-            var iName = ctx.CreateVariableName("i");
+            var iName = ctx.DeclareRef("i");
 
             var wName = ctx.Declare(Weight.DenseValues(), "weights");
-            ctx.AddExpression(ctx.GetDef(wName));
+            ctx.AddExp(ctx.GetDef(wName));
             
             var iRef = ctx.GetRef(iName);
-            var forExp = ctx.MakeFor(iName, 0, Weight.Length);
+            var forExp = PmfUtils.MakeFor(iName, 0, Weight.Length);
             var wiName = ctx.Access(ctx.GetRef(srcName), iRef);
             forExp.For.Body.Add(ctx.GetDef(wiName));
             var xiName = ctx.Access(ctx.GetRef(wName), iRef);
@@ -269,7 +269,7 @@ namespace Microsoft.ML.Runtime.Learners
             var updateExp = PmfUtils.MakeSet(dstName, PmfUtils.Call("Add", ctx.GetRef(dstName), PmfUtils.Call("Mul", ctx.GetRef(wiName), ctx.GetRef(xiName))));
             forExp.For.Body.Add(updateExp);
 
-            ctx.AddExpression(forExp);
+            ctx.AddExp(forExp);
 
             return true;
         }

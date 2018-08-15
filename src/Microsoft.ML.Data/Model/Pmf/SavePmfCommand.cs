@@ -16,7 +16,7 @@ using Microsoft.ML.Runtime.Model.Pmf;
 using Newtonsoft.Json;
 
 [assembly: LoadableClass(SavePmfCommand.Summary, typeof(SavePmfCommand), typeof(SavePmfCommand.Arguments), typeof(SignatureCommand),
-    "Save PMF", "SavePmf", DocName = "command/SavePmf.md")]
+    "Save PMF", "SavePmf")]
 
 [assembly: LoadableClass(typeof(void), typeof(SavePmfCommand), null, typeof(SignatureEntryPointModule), "SavePmf")]
 
@@ -191,7 +191,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                 if(_inputsToDrop.Contains(colName))
                     continue;
 
-                ctx.AddInputVariable(source.Schema.GetColumnType(i), colName);
+                ctx.AddModelInput(source.Schema.GetColumnType(i), colName);
                 inputColumns.Add(colName);
             }
 
@@ -213,7 +213,7 @@ namespace Microsoft.ML.Runtime.Model.Pmf
                     continue;
 
                 if (idataviewColumnName != null)
-                    ctx.AddOutputVariable(end.Schema.GetColumnType(i), idataviewColumnName);
+                    ctx.AddModelOutput(end.Schema.GetColumnType(i), idataviewColumnName);
             }
             var model = ctx.MakeModel();
             if (_outputModelPath != null)
