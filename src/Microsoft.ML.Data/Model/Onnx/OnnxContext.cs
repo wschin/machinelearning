@@ -4,6 +4,7 @@
 
 using System.Collections.Generic;
 using Microsoft.ML.Runtime.Data;
+using Microsoft.ML.Runtime.UniversalModelFormat.Onnx;
 
 namespace Microsoft.ML.Runtime.Model.Onnx
 {
@@ -61,6 +62,8 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         /// <returns>The ONNX variable name corresponding to that data view column</returns>
         public abstract string GetVariableName(string colName);
 
+        public abstract string AddVariable(string colName);
+
         /// <summary>
         /// Establishes a new mapping from an data view column in the context, if necessary generates a unique name, and
         /// returns that newly allocated name.
@@ -81,12 +84,13 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         /// which ought to have been something returned from <see cref="AddIntermediateVariable(ColumnType, string, bool)"/></param>
         /// <param name="name">The name of the operator, which ought to be something returned from <see cref="GetNodeName(string)"/></param>
         /// <param name="domain">The domain of the ONNX operator, if non-default</param>
+        /// <param name="isGlobal">A flag indicating if the node should be added into the graph</param>
         /// <returns>A node added to the in-progress ONNX graph, that attributes can be set on</returns>
         public abstract OnnxNode CreateNode(string opType, IEnumerable<string> inputs,
-            IEnumerable<string> outputs, string name, string domain = null);
+            IEnumerable<string> outputs, string name, string domain = null, bool isGlobal = true);
 
         /// <summary>
-        /// Convenience alternative to <see cref="CreateNode(string, IEnumerable{string}, IEnumerable{string}, string, string)"/>
+        /// Convenience alternative to <see cref="CreateNode(string, IEnumerable{string}, IEnumerable{string}, string, string, bool)"/>
         /// for the case where there is exactly one input and output.
         /// </summary>
         /// <param name="opType">The name of the ONNX operator to apply</param>
@@ -95,8 +99,29 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         /// which ought to have been something returned from <see cref="OnnxContext.AddIntermediateVariable(ColumnType, string, bool)"/></param>
         /// <param name="name">The name of the operator, which ought to be something returned from <see cref="OnnxContext.GetNodeName(string)"/></param>
         /// <param name="domain">The domain of the ONNX operator, if non-default</param>
+        /// <param name="isGlobal">A flag indicating if the node should be added into the graph</param>
         /// <returns>A node added to the in-progress ONNX graph, that attributes can be set on</returns>
-        public OnnxNode CreateNode(string opType, string input, string output, string name, string domain = null)
-            => CreateNode(opType, new[] { input }, new[] { output }, name, domain);
+        public OnnxNode CreateNode(string opType, string input, string output, string name, string domain = null, bool isGlobal = true)
+            => CreateNode(opType, new[] { input }, new[] { output }, name, domain, isGlobal);
+
+        public abstract void AddNode(NodeProto node);
+
+        // Call this function can declare a global float 
+        public abstract string AddInitializer(float value, string name = null);
+
+        // Call this function can declare a global int64 
+        public abstract string AddInitializer(long value, string name = null);
+
+        // Call this function can declare a global string 
+        public abstract string AddInitializer(string value, string name = null);
+
+        // Call this function can declare a global float tensor 
+        public abstract string AddInitializer(IEnumerable<float> values, List<long> dims, string name = null);
+
+        // Call this function can declare a global int64 tensor 
+        public abstract string AddInitializer(IEnumerable<long> values, List<long> dims, string name = null);
+
+        // Call this function can declare a global int64 tensor 
+        public abstract string AddInitializer(IEnumerable<string> values, List<long> dims, string name = null);
     }
 }

@@ -4,6 +4,7 @@
 
 using System.Collections.Generic;
 using Microsoft.ML.Runtime.Data;
+using Microsoft.ML.Runtime.UniversalModelFormat.Onnx;
 
 namespace Microsoft.ML.Runtime.Model.Onnx
 {
@@ -15,6 +16,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
     /// </summary>
     public abstract class OnnxNode
     {
+        public NodeProto Node { get; set; }
         public abstract void AddAttribute(string argName, double value);
         public abstract void AddAttribute(string argName, long value);
         public abstract void AddAttribute(string argName, DvText value);

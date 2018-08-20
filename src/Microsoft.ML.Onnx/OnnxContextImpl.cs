@@ -20,6 +20,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         // The map from IDataView column names to variable names.
         private readonly List<OnnxUtils.ModelArgs> _intermediateValues;
         private readonly List<OnnxUtils.ModelArgs> _outputs;
+        private readonly List<TensorProto> _initializers;
         private readonly Dictionary<string, string> _columnNameMap;
         // All existing variable names. New variables must not exist in this set.
         private readonly HashSet<string> _variableNames;
@@ -43,6 +44,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             _nodes = new List<NodeProto>();
             _intermediateValues = new List<OnnxUtils.ModelArgs>();
             _inputs = new List<OnnxUtils.ModelArgs>();
+            _initializers = new List<TensorProto>();
             _outputs = new List<OnnxUtils.ModelArgs>();
             _columnNameMap = new Dictionary<string, string>();
             _variableNames = new HashSet<string>();
@@ -126,7 +128,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         /// Adds a node to the node list of the graph.
         /// </summary>
         /// <param name="node"></param>
-        private void AddNode(NodeProto node)
+        public override void AddNode(NodeProto node)
         {
             _host.CheckValue(node, nameof(node));
             _host.Assert(!_nodeNames.Contains(node.Name));
@@ -136,7 +138,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         }
 
         public override OnnxNode CreateNode(string opType, IEnumerable<string> inputs,
-            IEnumerable<string> outputs, string name, string domain = null)
+            IEnumerable<string> outputs, string name, string domain = null, bool isGlobal=true)
         {
             _host.CheckNonEmpty(opType, nameof(opType));
             _host.CheckValue(inputs, nameof(inputs));
@@ -144,7 +146,8 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             _host.CheckNonEmpty(name, nameof(name));
 
             var innerNode = OnnxUtils.MakeNode(opType, inputs, outputs, name, domain);
-            AddNode(innerNode);
+            if (isGlobal)
+                AddNode(innerNode);
             return new OnnxNodeImpl(innerNode);
         }
 
@@ -196,7 +199,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         /// </summary>
         /// <param name="colName">IDataView column name.</param>
         /// <returns>Unique variable name.</returns>
-        private string AddVariable(string colName)
+        public override string AddVariable(string colName)
         {
             _host.CheckNonEmpty(colName, nameof(colName));
             _columnNameMap[colName] = GetUniqueName(colName, _variableNames.Contains);
@@ -226,6 +229,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         {
             _host.CheckValue(type, nameof(type));
 
+            // REVIEW: This condition should never hold because an output must be produced by a node somewhere.
             if (!ContainsColumn(colName))
                 AddVariable(colName);
 
@@ -247,9 +251,90 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         }
 
         /// <summary>
+        /// Adds constant tensors into the graph.
+        /// </summary>
+        public override string AddInitializer(float value, string name = null)
+        {
+            if (name != null)
+                name = AddVariable(name);
+            else
+                name = AddVariable("initializer");
+
+            _initializers.Add(OnnxUtils.MakeFloat(name, value));
+            return name;
+        }
+
+        public override string AddInitializer(string value, string name = null)
+        {
+            if (name != null)
+                name = AddVariable(name);
+            else
+                name = AddVariable("initializer");
+
+            _initializers.Add(OnnxUtils.MakeString(name, value));
+            return name;
+        }
+
+        public override string AddInitializer(long value, string name = null)
+        {
+            if (name != null)
+                name = AddVariable(name);
+            else
+                name = AddVariable("initializer");
+
+            _initializers.Add(OnnxUtils.MakeInt64(name, value));
+            return name;
+        }
+
+        public override string AddInitializer(IEnumerable<float> values, List<long> dims, string name = null)
+        {
+            _host.CheckValue(values, nameof(values));
+            if (dims != null)
+                _host.Check(dims.Aggregate((x, y) => x * y) == values.Count(), "Number of elements doesn't match tensor size");
+
+            if (name != null)
+                name = AddVariable(name);
+            else
+                name = AddVariable("initializer");
+
+            _initializers.Add(OnnxUtils.MakeFloats(name, values, dims));
+            return name;
+        }
+
+        public override string AddInitializer(IEnumerable<long> values, List<long> dims, string name = null)
+        {
+            _host.CheckValue(values, nameof(values));
+            if (dims != null)
+                _host.Check(dims.Aggregate((x, y) => x * y) == values.Count(), "Number of elements doesn't match tensor size");
+
+            if (name != null)
+                name = AddVariable(name);
+            else
+                name = AddVariable("initializer");
+
+            _initializers.Add(OnnxUtils.MakeInt64s(name, values, dims));
+            return name;
+        }
+
+        public override string AddInitializer(IEnumerable<string> values, List<long> dims, string name = null)
+        {
+            _host.CheckValue(values, nameof(values));
+            if (dims != null)
+                _host.Check(dims.Aggregate((x, y) => x * y) == values.Count(), "Number of elements doesn't match tensor size");
+
+            if (name != null)
+                name = AddVariable(name);
+            else
+                name = AddVariable("initializer");
+
+            _initializers.Add(OnnxUtils.MakeStrings(name, values, dims));
+            return name;
+        }
+
+        /// <summary>
         /// Makes the ONNX model based on the context.
         /// </summary>
         public ModelProto MakeModel()
-            => OnnxUtils.MakeModel(_nodes, _producerName, _name, _domain, _producerVersion, _modelVersion, _inputs, _outputs, _intermediateValues);
+            => OnnxUtils.MakeModel(_nodes, _producerName, _name, _domain, _producerVersion, _modelVersion, _inputs, _outputs, _intermediateValues, _initializers);
     }
 }

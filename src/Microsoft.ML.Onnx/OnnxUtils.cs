@@ -16,6 +16,27 @@ namespace Microsoft.ML.Runtime.Model.Onnx
     /// </summary>
     internal static class OnnxUtils
     {
+        public static TensorProto.Types.DataType GetScalarType(string typeName)
+        {
+            var dataType = TensorProto.Types.DataType.Undefined;
+            switch (typeName)
+            {
+                case "float":
+                    dataType = TensorProto.Types.DataType.Float;
+                    break;
+                case "string":
+                    dataType = TensorProto.Types.DataType.String;
+                    break;
+                case "long":
+                    dataType = TensorProto.Types.DataType.Int64;
+                    break;
+                default:
+                    Contracts.Assert(false, "Unknown type string.");
+                    break;
+            }
+            return dataType;
+        }
+
         private static TypeProto MakeType(TypeProto typeProto, TensorProto.Types.DataType dataType,
             List<long> dims, List<bool> dimsParam)
         {
@@ -48,10 +69,12 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         private static ValueInfoProto MakeValue(ValueInfoProto value, string name, TensorProto.Types.DataType dataType,
             List<long> dims, List<bool> dimsParam)
         {
-            Contracts.CheckValue(value, nameof(value));
-            Contracts.CheckNonEmpty(name, nameof(name));
+            if (value == null)
+                value = new ValueInfoProto();
 
-            value.Name = name;
+            if (name != "")
+                value.Name = name;
+
             if (value.Type == null)
                 value.Type = new TypeProto();
 
@@ -59,7 +82,15 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return value;
         }
 
-        private static AttributeProto MakeAttribute(string key)
+        private static ValueInfoProto MakeValue(ValueInfoProto value, TensorProto tensor)
+        {
+            value.Name = tensor.Name;
+            value.Type = new TypeProto();
+            MakeType(value.Type, tensor.DataType, tensor.Dims.ToList(), null);
+            return value;
+        }
+
+        public static AttributeProto MakeAttribute(string key)
         {
             Contracts.CheckNonEmpty(key, nameof(key));
 
@@ -68,7 +99,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, double value)
+        public static AttributeProto MakeAttribute(string key, double value)
         {
             AttributeProto attribute = MakeAttribute(key);
             attribute.Type = AttributeProto.Types.AttributeType.Float;
@@ -76,7 +107,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, IEnumerable<double> value)
+        public static AttributeProto MakeAttribute(string key, IEnumerable<double> value)
         {
             Contracts.CheckValue(value, nameof(value));
 
@@ -86,7 +117,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, IEnumerable<float> value)
+        public static AttributeProto MakeAttribute(string key, IEnumerable<float> value)
         {
             Contracts.CheckValue(value, nameof(value));
 
@@ -96,7 +127,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, long value)
+        public static AttributeProto MakeAttribute(string key, long value)
         {
             AttributeProto attribute = MakeAttribute(key);
             attribute.Type = AttributeProto.Types.AttributeType.Int;
@@ -104,7 +135,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, IEnumerable<long> value)
+        public static AttributeProto MakeAttribute(string key, IEnumerable<long> value)
         {
             Contracts.CheckValue(value, nameof(value));
 
@@ -114,7 +145,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, ByteString value)
+        public static AttributeProto MakeAttribute(string key, ByteString value)
         {
             AttributeProto attribute = MakeAttribute(key);
             attribute.Type = AttributeProto.Types.AttributeType.String;
@@ -122,7 +153,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, IEnumerable<ByteString> value)
+        public static AttributeProto MakeAttribute(string key, IEnumerable<ByteString> value)
         {
             Contracts.CheckValue(value, nameof(value));
 
@@ -132,7 +163,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, GraphProto value)
+        public static AttributeProto MakeAttribute(string key, GraphProto value)
         {
             AttributeProto attribute = MakeAttribute(key);
             attribute.Type = AttributeProto.Types.AttributeType.Graph;
@@ -140,7 +171,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, IEnumerable<GraphProto> value)
+        public static AttributeProto MakeAttribute(string key, IEnumerable<GraphProto> value)
         {
             Contracts.CheckValue(value, nameof(value));
 
@@ -150,7 +181,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             return attribute;
         }
 
-        private static AttributeProto MakeAttribute(string key, bool value) => MakeAttribute(key, value ? 1 : 0);
+        public static AttributeProto MakeAttribute(string key, bool value) => MakeAttribute(key, value ? 1 : 0);
 
         public static NodeProto MakeNode(string opType, IEnumerable<string> inputs, IEnumerable<string> outputs, string name, string domain = null)
         {
@@ -210,6 +241,9 @@ namespace Microsoft.ML.Runtime.Model.Onnx
         public static void NodeAddAttributes(NodeProto node, string argName, bool value)
             => node.Attribute.Add(MakeAttribute(argName, value));
 
+        public static void GraphAddNode(GraphProto graph, NodeProto node)
+            => graph.Node.Add(node);
+
         private static ByteString StringToByteString(DvText str) => ByteString.CopyFrom(Encoding.UTF8.GetBytes(str.ToString()));
         private static IEnumerable<ByteString> StringToByteString(IEnumerable<DvText> str)
             => str.Select(s => ByteString.CopyFrom(Encoding.UTF8.GetBytes(s.ToString())));
@@ -237,7 +271,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
 
         public static ModelProto MakeModel(List<NodeProto> nodes, string producerName, string name,
             string domain, string producerVersion, long modelVersion, List<ModelArgs> inputs,
-            List<ModelArgs> outputs, List<ModelArgs> intermediateValues)
+            List<ModelArgs> outputs, List<ModelArgs> intermediateValues, List<TensorProto> initializers)
         {
             Contracts.CheckValue(nodes, nameof(nodes));
             Contracts.CheckValue(inputs, nameof(inputs));
@@ -265,6 +299,14 @@ namespace Microsoft.ML.Runtime.Model.Onnx
                 var val = new ValueInfoProto();
                 graph.Input.Add(val);
                 MakeValue(val, arg.Name, arg.DataType, arg.Dims, arg.DimParams);
+            }
+
+            foreach (var tensor in initializers)
+            {
+                graph.Initializer.Add(tensor);
+                var val = new ValueInfoProto();
+                graph.Input.Add(val);
+                MakeValue(val, tensor);
             }
 
             foreach (var arg in outputs)
@@ -347,6 +389,119 @@ namespace Microsoft.ML.Runtime.Model.Onnx
             dimsLocal?.Insert(0, 1);
 
             return new ModelArgs(name, dataType, dimsLocal, dimsParamLocal);
+        }
+
+        // Make int64 scalar in ONNX from native C# number
+        public static TensorProto MakeInt64(string name, long value)
+        {
+            var tensor = new TensorProto();
+            tensor.Name = name;
+            tensor.DataType = TensorProto.Types.DataType.Int64;
+            tensor.Int64Data.Add(value);
+            return tensor;
+        }
+
+        // Make float vector (i.e., 1-D tensor) with dims=null. Otherwise, dims is used as the shape of the produced tensor.
+        public static TensorProto MakeInt64s(string name, IEnumerable<long> values, IEnumerable<long> dims=null)
+        {
+            var tensor = new TensorProto();
+            tensor.Name = name;
+            tensor.DataType = TensorProto.Types.DataType.Int64;
+            tensor.Int64Data.AddRange(values);
+            if (dims != null)
+                tensor.Dims.AddRange(dims);
+            else
+                tensor.Dims.Add(values.Count());
+            return tensor;
+        }
+
+        // Make float scalar in ONNX from native C# number
+        public static TensorProto MakeFloat(string name, float value)
+        {
+            var tensor = new TensorProto();
+            tensor.Name = name;
+            tensor.DataType = TensorProto.Types.DataType.Float;
+            tensor.FloatData.Add(value);
+            return tensor;
+        }
+
+        // Make float vector (i.e., 1-D tensor) with dims=null. Otherwise, dims is used as the shape of the produced tensor.
+        public static TensorProto MakeFloats(string name, IEnumerable<float> values, IEnumerable<long> dims=null)
+        {
+            var tensor = new TensorProto();
+            tensor.Name = name;
+            tensor.DataType = TensorProto.Types.DataType.Float;
+            tensor.FloatData.AddRange(values);
+            if (dims != null)
+                tensor.Dims.AddRange(dims);
+            else
+                tensor.Dims.Add(values.Count());
+            return tensor;
+        }
+
+        // Make float scalar in ONNX from native C# number
+        public static TensorProto MakeString(string name, string value)
+        {
+            var tensor = new TensorProto();
+            tensor.Name = name;
+            tensor.DataType = TensorProto.Types.DataType.String;
+            tensor.StringData.Add(StringToByteString(value));
+            return tensor;
+        }
+
+        // Make float vector (i.e., 1-D tensor) with dims=null. Otherwise, dims is used as the shape of the produced tensor.
+        public static TensorProto MakeStrings(string name, IEnumerable<string> values, IEnumerable<long> dims=null)
+        {
+            var tensor = new TensorProto();
+            tensor.Name = name;
+            tensor.DataType = TensorProto.Types.DataType.String;
+            tensor.StringData.AddRange(StringToByteString(values));
+            if (dims != null)
+                tensor.Dims.AddRange(dims);
+            else
+                tensor.Dims.Add(values.Count());
+            return tensor;
+        }
+
+        // Define a Loop operator with inputs=(iMaxName, "") and outputs=(mappedName). It matches the pattern of Map
+        // in standard MapReduce framework
+        public static NodeProto MakeLoop(string opName, string iMaxName, string oName)
+        {
+            return MakeNode("Loop", new List<string> { iMaxName, "" }, new List<string> { oName }, opName);
+        }
+
+        public static GraphProto MakeGraph()
+        {
+            return new GraphProto();
+        }
+
+        public static NodeProto MakeNode()
+        {
+            return new NodeProto();
+        }
+
+        // Define the body graph with inputs= (iName, "") and outputs=("", mappedName). It should be used with MakeLoop(...)
+        // to create a Map operator.
+        public static GraphProto MakeLoopBody(string iName, string oName, string oType)
+        {
+            // Translate the type string (e.g., "float") to ONNX enum (e.g., TensorProto.Types.DataType.Float).
+            var oTypeEnum = GetScalarType(oType);
+
+            // The only input is the loop iterator, a integer value.
+            var iValue = MakeValue(null, iName, oTypeEnum, null, null);
+            // The produced output is a variable-length vector (1-D tensor). Its type is specified by oType.
+            var oValue = MakeValue(null, oName, oTypeEnum, new List<long> { 0 }, new List<bool> { true });
+            // Create a dummy condition variable. It's not useful in Map operator.
+            var cond = MakeValue(null, "", TensorProto.Types.DataType.Bool, null, null);
+
+            // Create the body for an ONNX Loop operator
+            var body = MakeGraph();
+            body.Input.Add(iValue);
+            body.Input.Add(cond);
+            body.Output.Add(cond);
+            body.Output.Add(oValue);
+
+            return body;
         }
     }
 }

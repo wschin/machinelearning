@@ -5,6 +5,7 @@
 using Float = System.Single;
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.ML.Runtime;
@@ -12,6 +13,8 @@ using Microsoft.ML.Runtime.CommandLine;
 using Microsoft.ML.Runtime.Data;
 using Microsoft.ML.Runtime.Internal.Utilities;
 using Microsoft.ML.Runtime.Model;
+using Microsoft.ML.Runtime.Model.Onnx;
+using Microsoft.ML.Runtime.UniversalModelFormat.Onnx;
 using Microsoft.ML.Runtime.EntryPoints;
 
 [assembly: LoadableClass(NgramTransform.Summary, typeof(NgramTransform), typeof(NgramTransform.Arguments), typeof(SignatureDataTransform),
@@ -694,5 +697,235 @@ namespace Microsoft.ML.Runtime.Data
 
             return del;
         }
+
+        public override bool CanSaveOnnx => true;
+
+        protected override bool SaveAsOnnxCore(OnnxContext ctx, int iinfo, ColInfo info, string srcVariableName,
+            string dstVariableName)
+        {
+            // Dictionary (sequence to index map): _ngramMaps[iinfo];
+            // IDF array: _invDocFreqs[iinfo];
+            // srcVariableName is a [1, L]-tensor (integers)
+            // dstVariableName is a [1, |_ngramMaps[iinfo]|]-tensor (integers)
+
+            // Input sequence length. You can assume that the input sequence is a sentence encoded as a vector of integer tokens.
+            var L = info.TypeSrc.ValueCount;
+            // Maximum number of tokens per n-gram
+            var nMax = _exes[iinfo].NgramLength;
+            // Maximum number of allowed  skips when extracting a n-gram from the input sequence
+            var sMax = _exes[iinfo].SkipLength;
+            Host.Assert(L != 0);
+
+            long kMax = 1000; // max key value + 1
+
+            var multiplierNames = new List<string>();
+            for (int n = 0; n < nMax; ++n)
+            {
+                var multiplier = new long[n + 1]; // n + 1 is the number of toknes per n-gram in this loop
+                for (int i = 0; i < n + 1; ++i)
+                {
+                    if (i == 0)
+                        multiplier[i] = 1;
+                    else
+                        multiplier[i] = multiplier[i - 1] * kMax;
+                }
+                var multiplierName = ctx.AddInitializer(multiplier, new List<long>{ 1, n + 1}, "multiplier" + n);
+                multiplierNames.Add(multiplierName);
+            }
+
+            var linearNgramIndexes = new List<string>();
+            // We construct independent sub-sequences and apply similar operations on them to extract n-grams.
+            // Note that pos is the starting index of the considered sub-sequence.
+            for (int pos = 0; pos < L; ++pos)
+            {
+                // When the sequence is not long enough or the starting index of the considered n-gram is too large,
+                // having a large number of skips is not possible. We will calibrate sMax into sBar in this case. In
+                // other words, sBar is a possibly shrinked version of sMax or just sMax.
+                var sBar = 0;
+                // Check if the minimal last token's index larger than the last index in the sequence
+                if (pos + nMax - 1 >= L - 1)
+                    continue;
+                else
+                {
+                    // Minimal last index (i.e., last index in a sequence without skip): pos + n - 1
+                    // Last valid index in the sequence: L - 1, where L is the sequence length.
+                    // The upper bound of # of skips (denoted by s) can be obtained via
+                    //     pos + n - 1 + s <= L - 1  => s <= L - pos - n
+                    // Note that s >= 0 (no negative skip exists)
+                    sBar = Math.Min(sMax, Math.Max(0, L - pos - nMax));
+                }
+
+                // Copy sequence[pos, pos + nMax + sBar] to a buffer
+                var bufName = ctx.AddVariable("buffer");
+                var sliceName = ctx.GetNodeName("Slice");
+                var sliceNode = ctx.CreateNode("Slice", srcVariableName, bufName, sliceName);
+                sliceNode.AddAttribute("axes", new[] { 1L });
+                sliceNode.AddAttribute("starts", new[] { (long)pos });
+                sliceNode.AddAttribute("ends", new[] { (long)(pos + nMax + sBar) });
+
+                // For each of (n, s), we create a nested loop operator to extract the corresponding n-grams from the buffer we just create.
+                // Note that n = # of tokens in an n-gram while s = # of skips.
+                for (int n = 1; n <= nMax; ++n)
+                {
+                    // The name collection the indexes we should use for extracting n-gram from the current buffer.
+                    // Each name is corresponding to a 2-D tensor with (# of index vector)-by-n.
+                    var indexTensorList = new List<string>();
+
+                    // Create operators to compute the indexes for the current buffer without skip
+                    indexTensorList.Add(MakeIndexingNode(ctx, n));
+
+                    // Skip cannot be added if there is only one token in the n-gram because there is nothing after the first token.
+                    if (n != 1)
+                        // Create operators to compute the indexes for the current buffer with skips. The variable s denotes the # of skips.
+                        for (int s = 1; s <= sBar; ++s)
+                            indexTensorList.Add(MakeIndexingNodeWithSkip(ctx, n, s));
+
+                    var indexTensorName = ctx.AddVariable("indexTensor" );
+                    var concatNode = ctx.CreateNode("Concat", indexTensorList, new[] { indexTensorName }, ctx.GetNodeName("Concat"));
+                    concatNode.AddAttribute("axis", 0L);
+
+                    var uniqueIndexTensorName = ctx.AddVariable("uniqueIndexes");
+                    var uniqueNode = ctx.CreateNode("Unique", indexTensorName, uniqueIndexTensorName, ctx.GetNodeName("Unique"));
+                    uniqueNode.AddAttribute("axis", 0L);
+
+                    var extractedNgramsName = ctx.AddVariable("ngrams");
+                    var extractNode = ctx.CreateNode("Index", new[] { bufName, uniqueIndexTensorName },
+                        new[] { extractedNgramsName }, ctx.GetNodeName("Index"));
+
+                    var productName = ctx.AddVariable("product");
+                    var productNode = ctx.CreateNode("Mul", new []{ extractedNgramsName, multiplierNames[n-1] },
+                        new [] { productName }, ctx.GetNodeName("Mul"));
+
+                    var reducedName = ctx.AddVariable("reduced");
+                    var reducedNode = ctx.CreateNode("ReduceSum", productName, reducedName, ctx.GetNodeName("ReduceSum"));
+                    reducedNode.AddAttribute("axes", new[] { 1L });
+                    reducedNode.AddAttribute("keepdims", 0L);
+
+                    linearNgramIndexes.Add(reducedName);
+                }
+            }
+
+            var allNgramIndexesName = ctx.AddVariable("allLinearIndexes");
+            var concatAllNode = ctx.CreateNode("Concat", linearNgramIndexes, new[] { allNgramIndexesName }, ctx.GetNodeName("Concat"));
+            concatAllNode.AddAttribute("axis", 0L);
+
+            var encodedName = ctx.AddVariable("encoded");
+            var encoderNode = ctx.CreateNode("OneHotEncoder", allNgramIndexesName, encodedName, ctx.GetNodeName("OneHotEncoder"), "ai.onnx.ml");
+            encoderNode.AddAttribute("cats_int64s", new[] { 0L });
+
+            var allReduceNode = ctx.CreateNode("ReduceSum", encodedName, dstVariableName, ctx.GetNodeName("ReduceSum"));
+            allReduceNode.AddAttribute("axes", new[] { 0L });
+            allReduceNode.AddAttribute("keepdims", 1L);
+
+            return true;
+        }
+
+        private string MakeIndexingNode(OnnxContext ctx, int n)
+        {
+            var range = new List<long>();
+            for (int i = 0; i < n; ++i)
+                range.Add(i);
+
+            var rangeName = ctx.AddInitializer(range, new List<long> { 1, n }, "range" + n);
+            var outputName = ctx.AddVariable("indexesWithoutSkip");
+            ctx.AddNode(ctx.CreateNode("Identity", rangeName, outputName, ctx.GetNodeName("Assign"), "", false).Node);
+            return outputName;
+        }
+
+        private string MakeIndexingNodeWithSkip(OnnxContext ctx, int n, int s)
+        {
+            // Input arguments:
+            // n: # of tokens per n-gram
+            // s: # of allowed skips for extracting n-grams
+            Host.Check(n > 1);
+            Host.Check(s > 0);
+
+            // Create indexes of the buffer. If we have three integer keys (i.e., tokens stored as integers), the indexes would be [0, 1, 2].
+            var range = new List<long>();
+            for (int i = 0; i < n; ++i)
+                range.Add(i);
+            var rangeName = ctx.AddInitializer(range, new List<long> { n }, "range" + n);
+
+            // Declare iterators' names of the following nested loops because the inner most loop needs all of them to do computation.
+            // Also, we process the inner-most loop before working on other Loops.
+            var iterNames = new List<string>();
+            var loopNames = new List<string>();
+            var indexesNames = new List<string>();
+            var maxIterName = ctx.AddInitializer(n);
+            for (int iLoop = 0; iLoop < s; ++iLoop)
+            {
+                iterNames.Add(ctx.AddVariable("iter"));
+                loopNames.Add(ctx.AddVariable("Loop"));
+                indexesNames.Add(ctx.AddVariable("indexes"));
+            }
+
+            // The output indexes are finally computed by the outer-most Loop.
+            var outputName = indexesNames.First();
+
+            // Outer Loop needs to know its outer-most inner Loop so we declare a variable to store it.
+            var innerLoopNode = OnnxUtils.MakeNode();
+
+            // We construct inner loop before outer loop so that the indexes are gone through reversely.
+            for (int i = s - 1; i > -1; --i)
+            {
+                var iterName = iterNames[i];
+                var loopName = loopNames[i];
+                var indexesName = indexesNames[i];
+
+                var loopNode = OnnxUtils.MakeLoop(loopName, maxIterName, indexesName);
+                var bodyGraph = OnnxUtils.MakeLoopBody(iterName, indexesName, "long");
+
+                // Build body graph of Loop
+                if (i == s - 1)
+                {
+                    // Find the indexes to extract n-gram from the buffer via
+                    // indexes = range + [range > i_0] + ... + [range > i_{s-1}], where range=[0, 1, ..., n]
+                    var shiftedName = rangeName;
+                    for (int iLoop = 0; iLoop < s; ++iLoop)
+                    {
+                        var maskName = ctx.AddVariable("shiftMask");
+                        var notMaskName = ctx.AddVariable("shiftMask");
+                        var maskedName = ctx.AddVariable("shiftedIndexes");
+
+                        // Do [range > i_s]
+                        var compNode = ctx.CreateNode("Greater", new[] { rangeName, iterNames[iLoop] },
+                            new[] { maskName }, ctx.GetNodeName("Greater"), "", false);
+                        // Convert [range > i_s] to [range <= i_s] via Not
+                        var notNode = ctx.CreateNode("Not", maskName, notMaskName, ctx.GetNodeName("Not"), "", false);
+                        // Sum up [range > i_s] and a buffer variable
+                        var maskNode = ctx.CreateNode("Add", new[] { shiftedName, notMaskName },
+                            new[] { maskedName }, ctx.GetNodeName("Add"), "", false);
+
+                        bodyGraph.Node.Add(compNode.Node);
+                        bodyGraph.Node.Add(maskNode.Node);
+
+                        shiftedName = maskedName;
+                    }
+
+                    // Assign the final result to the scan_output of this Loop 
+                    var assignNode = ctx.CreateNode("Identity", shiftedName, indexesName, ctx.GetNodeName("Assign"), "", false);
+                    bodyGraph.Node.Add(assignNode.Node);
+                }
+                else
+                {
+                    bodyGraph.Node.Add(innerLoopNode);
+                    // Futher accumulate the scan_output from the inner Loop to this Loop's scan_output
+                    var assignNode = ctx.CreateNode("Identity", indexesNames[i + 1], indexesName, ctx.GetNodeName("Assign"), "", false);
+                    bodyGraph.Node.Add(assignNode.Node);
+                }
+
+                // Assign the built body to Loop (a ONNXProto)
+                loopNode.Attribute.Add(OnnxUtils.MakeAttribute("body", bodyGraph));
+
+                // Update the Loop which was built most recently,
+                // it will be added into outer Loop's body in next iteration.
+                innerLoopNode = loopNode;
+            }
+
+            // The last inner loop would be the outer-most Loop containing all other nested Loops
+            ctx.AddNode(innerLoopNode);
+            return outputName;
+        }
+
     }
 }

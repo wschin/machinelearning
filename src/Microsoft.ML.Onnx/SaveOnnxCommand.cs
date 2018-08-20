@@ -231,9 +231,7 @@ namespace Microsoft.ML.Runtime.Model.Onnx
                 if (_outputsToDrop.Contains(idataviewColumnName) || _inputsToDrop.Contains(idataviewColumnName))
                     continue;
 
-                var variableName = ctx.TryGetVariableName(idataviewColumnName);
-                if (variableName != null)
-                    ctx.AddOutputVariable(end.Schema.GetColumnType(i), variableName);
+                ctx.AddOutputVariable(end.Schema.GetColumnType(i), idataviewColumnName);
             }
 
             var model = ctx.MakeModel();
