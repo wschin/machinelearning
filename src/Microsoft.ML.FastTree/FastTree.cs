@@ -53,6 +53,11 @@ namespace Microsoft.ML.Runtime.FastTree
         protected Ensemble TrainedEnsemble;
         protected int FeatureCount;
         protected RoleMappedData ValidData;
+        /// <summary>
+        /// If not null, it's a test data set passed in from training context. It will be converted to one element in
+        /// <see cref="Tests"/> by calling <see cref="ExamplesToFastTreeBins.GetCompatibleDataset"/> in <see cref="InitializeTests"/>.
+        /// </summary>
+        protected RoleMappedData TestData;
         protected IParallelTraining ParallelTraining;
         protected OptimizationAlgorithm OptimizationAlgorithm;
         protected Dataset TrainSet;
@@ -95,7 +100,7 @@ namespace Microsoft.ML.Runtime.FastTree
             // The discretization step renders this trainer non-parametric, and therefore it does not need normalization.
             // Also since it builds its own internal discretized columnar structures, it cannot benefit from caching.
             // Finally, even the binary classifiers, being logitboost, tend to not benefit from external calibration.
-            Info = new TrainerInfo(normalization: false, caching: false, calibration: NeedCalibration, supportValid: true);
+            Info = new TrainerInfo(normalization: false, caching: false, calibration: NeedCalibration, supportValid: true, supportTest: true);
             int numThreads = Args.NumThreads ?? Environment.ProcessorCount;
             if (Host.ConcurrencyFactor > 0 && numThreads > Host.ConcurrencyFactor)
             {
@@ -144,6 +149,8 @@ namespace Microsoft.ML.Runtime.FastTree
             FeatureMap = instanceConverter.FeatureMap;
             if (ValidData != null)
                 ValidSet = instanceConverter.GetCompatibleDataset(ValidData, PredictionKind, CategoricalFeatures, Args.CategoricalSplit);
+            if (TestData != null)
+                TestSets = new[] { instanceConverter.GetCompatibleDataset(TestData, PredictionKind, CategoricalFeatures, Args.CategoricalSplit) };
         }
 
         private bool UseTranspose(bool? useTranspose, RoleMappedData data)
