@@ -68,6 +68,9 @@ namespace Microsoft.ML.Runtime.Data
             [Argument(ArgumentType.AtMostOnce, IsInputFileName = true, HelpText = "The test data file", ShortName = "test")]
             public string TestFile;
 
+            [Argument(ArgumentType.AtMostOnce, HelpText = "The path to print out metrics", ShortName = "metrics")]
+            public string MetricsPath;
+
             [Argument(ArgumentType.LastOccurenceWins, HelpText = "Whether we should cache input training data", ShortName = "cache")]
             public bool? CacheData;
 
@@ -198,7 +201,7 @@ namespace Microsoft.ML.Runtime.Data
             }
 
             var predictor = TrainUtils.Train(Host, ch, data, trainer, _info.LoadNames[0], validData,
-                Args.Calibrator, Args.MaxCalibrationExamples, Args.CacheData, inputPredictor, testDataUsedInTrainer);
+                Args.Calibrator, Args.MaxCalibrationExamples, Args.CacheData, inputPredictor, testDataUsedInTrainer, Args.MetricsPath);
 
             using (var file = Host.CreateOutputFile(Args.OutputModelFile))
                 TrainUtils.SaveModel(Host, ch, file, predictor, data, cmd);
@@ -256,14 +259,14 @@ namespace Microsoft.ML.Runtime.Data
         }
 
         public static IPredictor Train(IHostEnvironment env, IChannel ch, RoleMappedData data, ITrainer trainer, string name, RoleMappedData validData,
-            SubComponent<ICalibratorTrainer, SignatureCalibrator> calibrator, int maxCalibrationExamples, bool? cacheData, IPredictor inputPredictor = null, RoleMappedData testData = null)
+            SubComponent<ICalibratorTrainer, SignatureCalibrator> calibrator, int maxCalibrationExamples, bool? cacheData, IPredictor inputPredictor = null, RoleMappedData testData = null, string metricsPath = null)
         {
             ICalibratorTrainer caliTrainer = !calibrator.IsGood() ? null : calibrator.CreateInstance(env);
-            return TrainCore(env, ch, data, trainer, name, validData, caliTrainer, maxCalibrationExamples, cacheData, inputPredictor, testData);
+            return TrainCore(env, ch, data, trainer, name, validData, caliTrainer, maxCalibrationExamples, cacheData, inputPredictor, testData, metricsPath);
         }
 
         private static IPredictor TrainCore(IHostEnvironment env, IChannel ch, RoleMappedData data, ITrainer trainer, string name, RoleMappedData validData,
-            ICalibratorTrainer calibrator, int maxCalibrationExamples, bool? cacheData, IPredictor inputPredictor = null, RoleMappedData testData = null)
+            ICalibratorTrainer calibrator, int maxCalibrationExamples, bool? cacheData, IPredictor inputPredictor = null, RoleMappedData testData = null, string metricsPath = null)
         {
             Contracts.CheckValue(env, nameof(env));
             env.CheckValue(ch, nameof(ch));
@@ -285,7 +288,7 @@ namespace Microsoft.ML.Runtime.Data
                 inputPredictor = null;
             }
             ch.Assert(validData == null || trainer.Info.SupportsValidation);
-            var predictor = trainer.Train(new TrainContext(data, validData, testData, inputPredictor));
+            var predictor = trainer.Train(new TrainContext(data, validData, testData, inputPredictor, metricsPath));
             return CalibratorUtils.TrainCalibratorIfNeeded(env, ch, calibrator, maxCalibrationExamples, trainer, predictor, data);
         }
 

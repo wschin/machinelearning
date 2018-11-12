@@ -74,7 +74,12 @@ namespace Microsoft.ML.Runtime.FastTree
             {
                 var maxLabel = GetLabelGains().Length - 1;
                 ConvertData(trainData);
-                TrainCore(ch);
+                if (context.MetricsPath != null)
+                    using (System.IO.StreamWriter file =
+                        new System.IO.StreamWriter(context.MetricsPath))
+                        TrainCore(ch, file);
+                else
+                    TrainCore(ch);
                 FeatureCount = trainData.Schema.Feature.Type.ValueCount;
                 ch.Done();
             }
@@ -314,9 +319,9 @@ namespace Microsoft.ML.Runtime.FastTree
             return lineBuilder.ToString();
         }
 
-        protected override void Train(IChannel ch)
+        protected override void Train(IChannel ch, System.IO.StreamWriter streamWriter = null)
         {
-            base.Train(ch);
+            base.Train(ch, streamWriter);
             // Print final last iteration.
             // Note that trainNDCG printed in graph will be from copy of a value from previous iteration
             // and will diffre slightly from the proper final value computed by FullTest.

@@ -23,6 +23,9 @@ namespace Microsoft.ML.Runtime.Data
             [Argument(ArgumentType.AtMostOnce, IsInputFileName = true, HelpText = "The test data file", ShortName = "test", SortOrder = 1)]
             public string TestFile;
 
+            [Argument(ArgumentType.AtMostOnce, HelpText = "The file for storing metrics", ShortName = "test", SortOrder = 1)]
+            public string metricsPath;
+
             [Argument(ArgumentType.Multiple, HelpText = "Trainer to use", ShortName = "tr")]
             public SubComponent<ITrainer, SignatureTrainer> Trainer = new SubComponent<ITrainer, SignatureTrainer>("AveragedPerceptron");
 
@@ -184,7 +187,7 @@ namespace Microsoft.ML.Runtime.Data
             }
 
             var predictor = TrainUtils.Train(Host, ch, data, trainer, _info.LoadNames[0], validData,
-                Args.Calibrator, Args.MaxCalibrationExamples, Args.CacheData, inputPredictor, testDataUsedInTrainer);
+                Args.Calibrator, Args.MaxCalibrationExamples, Args.CacheData, inputPredictor, testDataUsedInTrainer, Args.metricsPath);
 
             IDataLoader testPipe;
             using (var file = !string.IsNullOrEmpty(Args.OutputModelFile) ?

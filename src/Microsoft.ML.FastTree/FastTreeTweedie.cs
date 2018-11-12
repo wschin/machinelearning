@@ -65,7 +65,12 @@ namespace Microsoft.ML.Runtime.FastTree
                 trainData.CheckOptFloatWeight();
                 FeatureCount = trainData.Schema.Feature.Type.ValueCount;
                 ConvertData(trainData);
-                TrainCore(ch);
+                if (context.MetricsPath != null)
+                    using (System.IO.StreamWriter file =
+                        new System.IO.StreamWriter(context.MetricsPath))
+                        TrainCore(ch, file);
+                else
+                    TrainCore(ch);
                 ch.Done();
             }
             return new FastTreeTweediePredictor(Host, TrainedEnsemble, FeatureCount, InnerArgs);
@@ -257,9 +262,9 @@ namespace Microsoft.ML.Runtime.FastTree
             return lineBuilder.ToString();
         }
 
-        protected override void Train(IChannel ch)
+        protected override void Train(IChannel ch,  System.IO.StreamWriter streamWriter = null)
         {
-            base.Train(ch);
+            base.Train(ch, streamWriter);
             // Print final last iteration.
             // Note that trainNDCG printed in graph will be from copy of a value from previous iteration
             // and will differ slightly from the proper final value computed by FullTest.

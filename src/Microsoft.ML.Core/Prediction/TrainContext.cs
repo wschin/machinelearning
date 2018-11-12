@@ -41,6 +41,8 @@ namespace Microsoft.ML.Runtime
         /// </summary>
         public IPredictor InitialPredictor { get; }
 
+        public string MetricsPath;
+
         /// <summary>
         /// Constructor, given a training set and optional other arguments.
         /// </summary>
@@ -48,7 +50,7 @@ namespace Microsoft.ML.Runtime
         /// <param name="validationSet">Will set <see cref="ValidationSet"/> to this value if specified</param>
         /// <param name="testSet">Will set <see cref="TestSet"/> to this value if specified</param>
         /// <param name="initialPredictor">Will set <see cref="InitialPredictor"/> to this value if specified</param>
-        public TrainContext(RoleMappedData trainingSet, RoleMappedData validationSet = null, RoleMappedData testSet = null, IPredictor initialPredictor = null)
+        public TrainContext(RoleMappedData trainingSet, RoleMappedData validationSet = null, RoleMappedData testSet = null, IPredictor initialPredictor = null, string metricsPath = null)
         {
             Contracts.CheckValue(trainingSet, nameof(trainingSet));
             Contracts.CheckValueOrNull(validationSet);
@@ -61,6 +63,7 @@ namespace Microsoft.ML.Runtime
             ValidationSet = validationSet;
             TestSet = testSet;
             InitialPredictor = initialPredictor;
+            MetricsPath = metricsPath;
         }
     }
 }

@@ -58,6 +58,7 @@ namespace Microsoft.ML.Runtime.FastTree
         /// <see cref="Tests"/> by calling <see cref="ExamplesToFastTreeBins.GetCompatibleDataset"/> in <see cref="InitializeTests"/>.
         /// </summary>
         protected RoleMappedData TestData;
+        protected string metricsPath;
         protected IParallelTraining ParallelTraining;
         protected OptimizationAlgorithm OptimizationAlgorithm;
         protected Dataset TrainSet;
@@ -165,7 +166,7 @@ namespace Microsoft.ML.Runtime.FastTree
             return td != null && td.TransposeSchema.GetSlotType(data.Schema.Feature.Index) != null;
         }
 
-        protected void TrainCore(IChannel ch)
+        protected void TrainCore(IChannel ch, StreamWriter recordWriter = null)
         {
             Contracts.CheckValue(ch, nameof(ch));
             // REVIEW:Get rid of this lock then we completly remove all static classes from FastTree such as BlockingThreadPool.
@@ -180,7 +181,7 @@ namespace Microsoft.ML.Runtime.FastTree
                     PrintMemoryStats(ch);
                 }
                 using (Timer.Time(TimerEvent.TotalTrain))
-                    Train(ch);
+                    Train(ch, recordWriter);
                 if (Args.ExecutionTimes)
                     PrintExecutionTimes(ch);
                 ch.Done();
@@ -557,7 +558,7 @@ namespace Microsoft.ML.Runtime.FastTree
             return false;
         }
 
-        protected virtual void Train(IChannel ch)
+        protected virtual void Train(IChannel ch, StreamWriter recordWritter = null)
         {
             Contracts.AssertValue(ch);
             int numTotalTrees = Args.NumTrees;
@@ -612,6 +613,9 @@ namespace Microsoft.ML.Runtime.FastTree
             using (var pch = Host.StartProgressChannel("FastTree training"))
             {
                 pch.SetHeader(new ProgressHeader("trees"), e => e.SetProgress(0, Ensemble.NumTrees, numTotalTrees));
+
+                if (recordWritter != null)
+                    PrintScoresToFile(true, recordWritter);
                 while (Ensemble.NumTrees < numTotalTrees)
                 {
                     using (Timer.Time(TimerEvent.Iteration))
@@ -660,6 +664,8 @@ namespace Microsoft.ML.Runtime.FastTree
                         {
                             PrintIterationMessage(ch, pch);
                             PrintTestResults(ch);
+                            if (recordWritter != null)
+                                PrintScoresToFile(false, recordWritter);
                         }
 
                         // revert randomized start
@@ -768,6 +774,35 @@ namespace Microsoft.ML.Runtime.FastTree
                     ch.Info(sb.ToString());
             }
         }
+
+        protected void PrintScoresToFile(bool printHeader, System.IO.StreamWriter file)
+        {
+            var namesAtThisIteration = new List<string>();
+            var valuesAtThisIteration = new List<double>();
+            foreach (var t in Tests)
+            {
+                var dataSetName = t.ScoreTracker.DatasetName;
+                foreach (var r in t.ComputeTests())
+                {
+                    var lossName = r.LossFunctionName;
+                    var value = r.FinalValue;
+                    namesAtThisIteration.Add(dataSetName + "-" + lossName);
+                    valuesAtThisIteration.Add(value);
+                }
+            }
+
+            if (printHeader)
+            {
+                var header = String.Join(" ", namesAtThisIteration);
+                file.WriteLine(header);
+            }
+            else
+            {
+                var content = String.Join(" ", valuesAtThisIteration);
+                file.WriteLine(content);
+            }
+        }
+
         protected virtual void PrintPrologInfo(IChannel ch)
         {
             Contracts.AssertValue(ch);
