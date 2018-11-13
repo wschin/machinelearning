@@ -23,7 +23,7 @@ namespace Microsoft.ML.Runtime.Data
             [Argument(ArgumentType.AtMostOnce, IsInputFileName = true, HelpText = "The test data file", ShortName = "test", SortOrder = 1)]
             public string TestFile;
 
-            [Argument(ArgumentType.AtMostOnce, HelpText = "The file for storing metrics", ShortName = "test", SortOrder = 1)]
+            [Argument(ArgumentType.AtMostOnce, HelpText = "The file for storing metrics", ShortName="metrics", SortOrder = 1)]
             public string metricsPath;
 
             [Argument(ArgumentType.Multiple, HelpText = "Trainer to use", ShortName = "tr")]
