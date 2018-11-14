@@ -41,7 +41,10 @@ namespace Microsoft.ML.Runtime
         /// </summary>
         public IPredictor InitialPredictor { get; }
 
-        public string MetricsPath;
+        /// <summary>
+        /// It provides path to store training progress. Trainer can ingnore this parameter.
+        /// </summary>
+        public string ProgressHistoryPath;
 
         /// <summary>
         /// Constructor, given a training set and optional other arguments.
@@ -50,7 +53,8 @@ namespace Microsoft.ML.Runtime
         /// <param name="validationSet">Will set <see cref="ValidationSet"/> to this value if specified</param>
         /// <param name="testSet">Will set <see cref="TestSet"/> to this value if specified</param>
         /// <param name="initialPredictor">Will set <see cref="InitialPredictor"/> to this value if specified</param>
-        public TrainContext(RoleMappedData trainingSet, RoleMappedData validationSet = null, RoleMappedData testSet = null, IPredictor initialPredictor = null, string metricsPath = null)
+        /// <param name="progressHistoryPath">Will set the file to store training progress</param>
+        public TrainContext(RoleMappedData trainingSet, RoleMappedData validationSet = null, RoleMappedData testSet = null, IPredictor initialPredictor = null, string progressHistoryPath = null)
         {
             Contracts.CheckValue(trainingSet, nameof(trainingSet));
             Contracts.CheckValueOrNull(validationSet);
@@ -63,7 +67,7 @@ namespace Microsoft.ML.Runtime
             ValidationSet = validationSet;
             TestSet = testSet;
             InitialPredictor = initialPredictor;
-            MetricsPath = metricsPath;
+            ProgressHistoryPath = progressHistoryPath;
         }
     }
 }

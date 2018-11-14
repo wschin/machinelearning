@@ -74,9 +74,9 @@ namespace Microsoft.ML.Runtime.FastTree
             {
                 var maxLabel = GetLabelGains().Length - 1;
                 ConvertData(trainData);
-                if (context.MetricsPath != null)
+                if (context.ProgressHistoryPath != null)
                     using (System.IO.StreamWriter file =
-                        new System.IO.StreamWriter(context.MetricsPath))
+                        new System.IO.StreamWriter(context.ProgressHistoryPath))
                         TrainCore(ch, file);
                 else
                     TrainCore(ch);

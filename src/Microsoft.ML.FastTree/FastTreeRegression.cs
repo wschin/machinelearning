@@ -64,9 +64,9 @@ namespace Microsoft.ML.Runtime.FastTree
                 trainData.CheckOptFloatWeight();
                 FeatureCount = trainData.Schema.Feature.Type.ValueCount;
                 ConvertData(trainData);
-                if (context.MetricsPath != null)
+                if (context.ProgressHistoryPath != null)
                     using (System.IO.StreamWriter file =
-                        new System.IO.StreamWriter(context.MetricsPath))
+                        new System.IO.StreamWriter(context.ProgressHistoryPath))
                         TrainCore(ch, file);
                 else
                     TrainCore(ch);
